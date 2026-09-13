@@ -16,7 +16,9 @@ import {
   X,
   Check,
   Archive,
+  Database,
 } from 'lucide-react';
+import { InstallPwaButton } from './InstallPwaButton';
 
 interface ThreadSidebarProps {
   threads: IThreadDoc[];
@@ -26,6 +28,7 @@ interface ThreadSidebarProps {
   onThreadArchived: (threadId: string) => void;
   onOpenTimeline: () => void;
   onOpenArchived: () => void;
+  onOpenDataBackup: () => void;
   isMobileOpen?: boolean;
   onMobileClose?: () => void;
   userEmail?: string;
@@ -48,6 +51,7 @@ export function ThreadSidebar({
   onThreadArchived,
   onOpenTimeline,
   onOpenArchived,
+  onOpenDataBackup,
   isMobileOpen = false,
   onMobileClose,
   userEmail,
@@ -188,6 +192,17 @@ export function ThreadSidebar({
             <Archive className="w-4 h-4 text-amber-400" />
             <span>Archived Tasks</span>
           </button>
+
+          <button
+            onClick={() => {
+              onOpenDataBackup();
+              if (onMobileClose) onMobileClose();
+            }}
+            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-900 transition-colors"
+          >
+            <Database className="w-4 h-4 text-indigo-400" />
+            <span>Data & Backup (JSON/CSV)</span>
+          </button>
         </div>
 
         {/* Threads Section List */}
@@ -260,22 +275,26 @@ export function ThreadSidebar({
           )}
         </div>
 
-        {/* User Footer with Email & Logout */}
-        <div className="p-3 border-t border-slate-800/80 bg-slate-950/60 flex items-center justify-between">
-          <div className="min-w-0 pr-2">
-            <p className="text-xs font-medium text-white truncate">Admin</p>
-            <p className="text-[10px] text-slate-400 truncate font-mono">{userEmail || 'admin@taskflow.local'}</p>
-          </div>
+        {/* User Footer with Install Button & Logout */}
+        <div className="p-3 border-t border-slate-800/80 bg-slate-950/60 space-y-2.5">
+          <InstallPwaButton className="w-full" />
 
-          <form action={logoutAction}>
-            <button
-              type="submit"
-              className="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-slate-900 border border-slate-800 transition-colors"
-              title="Sign Out"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
-          </form>
+          <div className="flex items-center justify-between pt-1">
+            <div className="min-w-0 pr-2">
+              <p className="text-xs font-medium text-white truncate">Admin</p>
+              <p className="text-[10px] text-slate-400 truncate font-mono">{userEmail || 'admin@taskflow.local'}</p>
+            </div>
+
+            <form action={logoutAction}>
+              <button
+                type="submit"
+                className="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-slate-900 border border-slate-800 transition-colors"
+                title="Sign Out"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </form>
+          </div>
         </div>
 
         {/* Create Thread Modal */}

@@ -18,8 +18,14 @@ Deploy your own instance of TaskFlow Pro to Vercel in seconds:
 
 ---
 
-## ✨ Key Features
-
+- 📱 **Progressive Web App (PWA) & 1-Click Install**:
+  - Full PWA support with native `manifest.webmanifest`, standalone mode, and dynamic icon assets.
+  - 1-click **Install App** button for Android/Desktop Chrome and interactive iOS Safari step-by-step guide.
+- 💾 **Zero-Latency Data Backup & Migration Hub (JSON & CSV)**:
+  - **Thread CSV Export**: Spreadsheet-ready `.csv` with Titles, Descriptions, Status Names, Priorities, Due Dates, and Reminder Frequencies using pure TypeScript RFC-4180 parsing/serialization.
+  - **Thread & Full Workspace JSON Backup**: Lossless export of threads, tasks, custom tags, and full movement histories.
+  - **Smart Task Import**: Drag-and-drop `.csv` or `.json` file dropzone with live preview table and automated status tag mapping.
+  - Zero-latency client-side downloads via in-memory `Blob` and `URL.createObjectURL`, eliminating serverless disk wear and bandwidth overhead.
 - 🧵 **Thread-Based Workspace**: Organize tasks across isolated threads (e.g. `Main Project Thread`, `Sprint 24`, `Mobile App`) from the left sidebar.
 - 🏷️ **Dynamic Thread-Level Custom Tags (Kanban Columns)**: Each thread defines its own status workflow (`Todo`, `Done`, `Schedule Latter` or custom statuses) with color customization, renaming, and safe task migration upon deletion.
 - 🔔 **Automated Web Push Notifications**:
@@ -38,7 +44,7 @@ Deploy your own instance of TaskFlow Pro to Vercel in seconds:
 - 📱 **Mobile-Optimized Experience**:
   - Slide-out navigation drawer with smooth backdrop blur overlay.
   - CSS Scroll Snap columns (`snap-x snap-mandatory`).
-  - Adaptive modals and touch-friendly controls.
+  - Adaptive modals, overflow-controlled card labels, and touch-friendly controls.
 - 🛡️ **Constant-Time ENV Authentication**: Single-admin login verified in constant time (`crypto.timingSafeEqual`) with edge-compatible signed session cookies (`jose`).
 
 ---

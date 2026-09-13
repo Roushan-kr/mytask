@@ -14,6 +14,7 @@ import { TagManagerModal } from '@/components/TagManagerModal';
 import { TimelineDrawer } from '@/components/TimelineDrawer';
 import { NotificationBell } from '@/components/NotificationBell';
 import { ArchivedTasksModal } from '@/components/ArchivedTasksModal';
+import { DataBackupModal } from '@/components/DataBackupModal';
 import {
   Plus,
   Search,
@@ -51,6 +52,7 @@ function DashboardContent() {
   const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
   const [isTimelineOpen, setIsTimelineOpen] = useState(false);
   const [isArchivedModalOpen, setIsArchivedModalOpen] = useState(false);
+  const [isDataBackupOpen, setIsDataBackupOpen] = useState(false);
 
   // Load User Session & Initial Threads
   const loadInitialData = useCallback(async () => {
@@ -212,6 +214,7 @@ function DashboardContent() {
         onThreadArchived={handleThreadArchived}
         onOpenTimeline={() => setIsTimelineOpen(true)}
         onOpenArchived={() => setIsArchivedModalOpen(true)}
+        onOpenDataBackup={() => setIsDataBackupOpen(true)}
         isMobileOpen={isMobileSidebarOpen}
         onMobileClose={() => setIsMobileSidebarOpen(false)}
         userEmail={userEmail}
@@ -262,7 +265,7 @@ function DashboardContent() {
           </div>
 
           {/* Header Stats & Quick Actions */}
-          <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <div className="hidden xl:flex items-center gap-3 text-xs text-slate-400">
               <span className="flex items-center gap-1.5 font-medium">
                 <ListTodo className="w-4 h-4 text-indigo-400" />
@@ -371,6 +374,21 @@ function DashboardContent() {
           currentThread={activeThread}
           threads={threads}
           onTaskRestored={handleTaskRestored}
+        />
+      )}
+
+      {/* Data Backup & Migration Hub Modal */}
+      {isDataBackupOpen && (
+        <DataBackupModal
+          isOpen={isDataBackupOpen}
+          onClose={() => setIsDataBackupOpen(false)}
+          activeThreadId={activeThreadId || undefined}
+          activeThreadName={activeThread?.name}
+          onImportSuccess={() => {
+            if (activeThread) {
+              loadTasksForThread(activeThread._id);
+            }
+          }}
         />
       )}
     </main>
