@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { IThreadDoc, ITaskDoc } from '@/lib/types';
 import { getThreadsAction, createThreadAction } from '@/app/actions/threads';
 import { getTasksAction, archiveTaskAction } from '@/app/actions/tasks';
@@ -12,9 +13,14 @@ import { TaskHistoryModal } from '@/components/TaskHistoryModal';
 import { TagManagerModal } from '@/components/TagManagerModal';
 import { TimelineDrawer } from '@/components/TimelineDrawer';
 import { NotificationBell } from '@/components/NotificationBell';
+import { ArchivedTasksModal } from '@/components/ArchivedTasksModal';
 import { Plus, Search, Filter, Layers, CheckCircle2, ListTodo } from 'lucide-react';
 
-export default function DashboardPage() {
+function DashboardContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const threadParam = searchParams.get('thread');
+
   const [threads, setThreads] = useState<IThreadDoc[]>([]);
   const [activeThread, setActiveThread] = useState<IThreadDoc | null>(null);
   const [tasks, setTasks] = useState<ITaskDoc[]>([]);
@@ -33,6 +39,7 @@ export default function DashboardPage() {
   const [historySelectedTask, setHistorySelectedTask] = useState<ITaskDoc | null>(null);
   const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
   const [isTimelineOpen, setIsTimelineOpen] = useState(false);
+  const [isArchivedModalOpen, setIsArchivedModalOpen] = useState(false);
 
   // Load User Session & Initial Threads
   const loadInitialData = useCallback(async () => {
@@ -59,14 +66,24 @@ export default function DashboardPage() {
         if (starter.success && starter.data) {
           setThreads([starter.data]);
           setActiveThread(starter.data);
+          router.replace(`/?thread=${starter.data._id}`, { scroll: false });
         }
       } else {
-        setThreads(res.data);
-        setActiveThread(res.data[0]);
+        const loadedThreads = res.data;
+        setThreads(loadedThreads);
+
+        // Check if thread query param matches any existing thread
+        const matched = threadParam ? loadedThreads.find((t) => t._id === threadParam) : null;
+        const initialSelected = matched || loadedThreads[0];
+        setActiveThread(initialSelected);
+
+        if (initialSelected && (!threadParam || threadParam !== initialSelected._id)) {
+          router.replace(`/?thread=${initialSelected._id}`, { scroll: false });
+        }
       }
     }
     setLoading(false);
-  }, []);
+  }, [threadParam, router]);
 
   useEffect(() => {
     loadInitialData();
@@ -89,17 +106,25 @@ export default function DashboardPage() {
   // Handlers
   const handleSelectThread = (thread: IThreadDoc) => {
     setActiveThread(thread);
+    router.replace(`/?thread=${thread._id}`, { scroll: false });
   };
 
   const handleThreadCreated = (newThread: IThreadDoc) => {
     setThreads([...threads, newThread]);
     setActiveThread(newThread);
+    router.replace(`/?thread=${newThread._id}`, { scroll: false });
   };
 
   const handleThreadArchived = (threadId: string) => {
     const remaining = threads.filter((t) => t._id !== threadId);
     setThreads(remaining);
-    setActiveThread(remaining[0] || null);
+    const nextSelected = remaining[0] || null;
+    setActiveThread(nextSelected);
+    if (nextSelected) {
+      router.replace(`/?thread=${nextSelected._id}`, { scroll: false });
+    } else {
+      router.replace('/', { scroll: false });
+    }
   };
 
   const handleOpenAddTask = (tagId?: string) => {
@@ -129,6 +154,15 @@ export default function DashboardPage() {
       setTasks(tasks.map((t) => (t._id === savedTask._id ? savedTask : t)));
     } else {
       setTasks([...tasks, savedTask]);
+    }
+  };
+
+  const handleTaskRestored = (restoredTask: ITaskDoc) => {
+    if (activeThread && restoredTask.threadId === activeThread._id) {
+      const exists = tasks.some((t) => t._id === restoredTask._id);
+      if (!exists) {
+        setTasks((prev) => [...prev, restoredTask]);
+      }
     }
   };
 
@@ -166,6 +200,7 @@ export default function DashboardPage() {
         onThreadCreated={handleThreadCreated}
         onThreadArchived={handleThreadArchived}
         onOpenTimeline={() => setIsTimelineOpen(true)}
+        onOpenArchived={() => setIsArchivedModalOpen(true)}
         userEmail={userEmail}
       />
 
@@ -303,6 +338,31 @@ export default function DashboardPage() {
           threadName={activeThread?.name}
         />
       )}
+
+      {/* Archived Tasks Modal */}
+      {isArchivedModalOpen && (
+        <ArchivedTasksModal
+          isOpen={isArchivedModalOpen}
+          onClose={() => setIsArchivedModalOpen(false)}
+          currentThread={activeThread}
+          threads={threads}
+          onTaskRestored={handleTaskRestored}
+        />
+      )}
     </main>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="h-screen w-screen flex items-center justify-center bg-slate-950 text-slate-400">
+          <span className="w-8 h-8 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
+        </div>
+      }
+    >
+      <DashboardContent />
+    </Suspense>
   );
 }

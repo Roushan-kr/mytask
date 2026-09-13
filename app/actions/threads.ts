@@ -13,6 +13,8 @@ import {
 } from '@/lib/validations';
 import { revalidatePath } from 'next/cache';
 
+const MAX_TASK_HISTORY_RECORDS = 100;
+
 export async function getThreadsAction(): Promise<{ success: boolean; data?: IThreadDoc[]; error?: string }> {
   try {
     const session = await getCurrentSession();
@@ -64,7 +66,7 @@ export async function createThreadAction(payload: {
       order: nextOrder,
     });
 
-    revalidatePath('/');
+    revalidatePath(`/?thread=${thread._id}`);
     return { success: true, data: JSON.parse(JSON.stringify(thread)) };
   } catch (error: any) {
     return { success: false, error: error.message || 'Failed to create thread' };
@@ -97,7 +99,7 @@ export async function updateThreadAction(payload: {
       { new: true }
     ).lean();
 
-    revalidatePath('/');
+    revalidatePath(`/?thread=${parsed.data.threadId}`);
     return { success: true, data: JSON.parse(JSON.stringify(updated)) };
   } catch (error: any) {
     return { success: false, error: error.message || 'Failed to update thread' };
@@ -138,6 +140,9 @@ export async function updateThreadTagsAction(payload: {
             timestamp: new Date(),
             details: 'Migrated upon tag deletion',
           });
+          if (task.history.length > MAX_TASK_HISTORY_RECORDS) {
+            task.history = task.history.slice(-MAX_TASK_HISTORY_RECORDS);
+          }
           task.tagId = parsed.data.migrateTasksToTagId;
           await task.save();
         }
@@ -152,11 +157,16 @@ export async function updateThreadTagsAction(payload: {
             $set: { isArchived: true, archivedAt: new Date() },
             $push: {
               history: {
-                action: 'archived',
-                fromTag: parsed.data.deletedTagId,
-                toTag: 'archived',
-                timestamp: new Date(),
-                details: 'Archived automatically because tag was deleted',
+                $each: [
+                  {
+                    action: 'archived',
+                    fromTag: parsed.data.deletedTagId,
+                    toTag: 'archived',
+                    timestamp: new Date(),
+                    details: 'Archived automatically because tag was deleted',
+                  },
+                ],
+                $slice: -MAX_TASK_HISTORY_RECORDS,
               },
             },
           }
@@ -170,7 +180,7 @@ export async function updateThreadTagsAction(payload: {
       { new: true }
     ).lean();
 
-    revalidatePath('/');
+    revalidatePath(`/?thread=${parsed.data.threadId}`);
     return { success: true, data: JSON.parse(JSON.stringify(updated)) };
   } catch (error: any) {
     return { success: false, error: error.message || 'Failed to update tags' };
@@ -201,10 +211,15 @@ export async function archiveThreadAction(payload: { threadId: string }) {
         $set: { isArchived: true, archivedAt: now },
         $push: {
           history: {
-            action: 'archived',
-            toTag: 'archived',
-            timestamp: now,
-            details: 'Archived with parent thread',
+            $each: [
+              {
+                action: 'archived',
+                toTag: 'archived',
+                timestamp: now,
+                details: 'Archived with parent thread',
+              },
+            ],
+            $slice: -MAX_TASK_HISTORY_RECORDS,
           },
         },
       }

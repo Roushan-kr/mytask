@@ -17,6 +17,8 @@ import {
 } from '@/lib/fractional-order';
 import { revalidatePath } from 'next/cache';
 
+const MAX_TASK_HISTORY_RECORDS = 100;
+
 export async function getTasksAction(threadId: string): Promise<{ success: boolean; data?: ITaskDoc[]; error?: string }> {
   try {
     const session = await getCurrentSession();
@@ -98,7 +100,7 @@ export async function createTaskAction(payload: {
       ],
     });
 
-    revalidatePath('/');
+    revalidatePath(`/?thread=${parsed.data.threadId}`);
     return { success: true, data: JSON.parse(JSON.stringify(task)) };
   } catch (error: any) {
     return { success: false, error: error.message || 'Failed to create task' };
@@ -145,12 +147,15 @@ export async function updateTaskAction(payload: {
         timestamp: new Date(),
         details: `Priority updated to ${parsed.data.priority}`,
       });
+      if (existing.history.length > MAX_TASK_HISTORY_RECORDS) {
+        existing.history = existing.history.slice(-MAX_TASK_HISTORY_RECORDS);
+      }
     }
 
     Object.assign(existing, updates);
     await existing.save();
 
-    revalidatePath('/');
+    revalidatePath(`/?thread=${existing.threadId}`);
     return { success: true, data: JSON.parse(JSON.stringify(existing)) };
   } catch (error: any) {
     return { success: false, error: error.message || 'Failed to update task' };
@@ -210,6 +215,9 @@ export async function moveTaskAction(payload: {
         timestamp: new Date(),
         details: `Moved from '${fromTag}' to '${toTag}'`,
       });
+      if (task.history.length > MAX_TASK_HISTORY_RECORDS) {
+        task.history = task.history.slice(-MAX_TASK_HISTORY_RECORDS);
+      }
     }
 
     await task.save();
@@ -240,7 +248,7 @@ export async function moveTaskAction(payload: {
       }
     }
 
-    revalidatePath('/');
+    revalidatePath(`/?thread=${parsed.data.threadId}`);
     return { success: true, data: JSON.parse(JSON.stringify(task)) };
   } catch (error: any) {
     return { success: false, error: error.message || 'Failed to move task' };
@@ -270,9 +278,12 @@ export async function archiveTaskAction(payload: { taskId: string }) {
       timestamp: new Date(),
       details: 'Task archived',
     });
+    if (task.history.length > MAX_TASK_HISTORY_RECORDS) {
+      task.history = task.history.slice(-MAX_TASK_HISTORY_RECORDS);
+    }
 
     await task.save();
-    revalidatePath('/');
+    revalidatePath(`/?thread=${task.threadId}`);
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message || 'Failed to archive task' };
@@ -330,5 +341,75 @@ export async function getTaskTimelineAction(threadId?: string) {
     };
   } catch (error: any) {
     return { success: false, error: error.message || 'Failed to fetch timeline' };
+  }
+}
+
+export async function getArchivedTasksAction(threadId?: string): Promise<{ success: boolean; data?: ITaskDoc[]; error?: string }> {
+  try {
+    const session = await getCurrentSession();
+    if (!session) return { success: false, error: 'Unauthorized' };
+
+    await connectDB();
+    const query: any = { isArchived: true };
+    if (threadId) {
+      query.threadId = threadId;
+    }
+
+    const tasks = await Task.find(query).sort({ archivedAt: -1, updatedAt: -1 }).lean();
+    return {
+      success: true,
+      data: JSON.parse(JSON.stringify(tasks)),
+    };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Failed to fetch archived tasks' };
+  }
+}
+
+export async function restoreTaskAction(payload: { taskId: string }) {
+  try {
+    const session = await getCurrentSession();
+    if (!session) return { success: false, error: 'Unauthorized' };
+
+    await connectDB();
+    const task = await Task.findById(payload.taskId);
+    if (!task) return { success: false, error: 'Task not found' };
+
+    task.isArchived = false;
+    task.archivedAt = null;
+    task.history.push({
+      action: 'updated',
+      fromTag: 'archived',
+      toTag: task.tagId,
+      timestamp: new Date(),
+      details: 'Restored from archive',
+    });
+    if (task.history.length > MAX_TASK_HISTORY_RECORDS) {
+      task.history = task.history.slice(-MAX_TASK_HISTORY_RECORDS);
+    }
+
+    await task.save();
+    revalidatePath(`/?thread=${task.threadId}`);
+    return { success: true, data: JSON.parse(JSON.stringify(task)) };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Failed to restore task' };
+  }
+}
+
+/**
+ * Permanently deletes task and its entire audit history from MongoDB.
+ */
+export async function permanentlyDeleteTaskAction(payload: { taskId: string }) {
+  try {
+    const session = await getCurrentSession();
+    if (!session) return { success: false, error: 'Unauthorized' };
+
+    await connectDB();
+    const deleted = await Task.findByIdAndDelete(payload.taskId);
+    if (!deleted) return { success: false, error: 'Task not found or already deleted' };
+
+    revalidatePath(`/?thread=${deleted.threadId}`);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Failed to permanently delete task' };
   }
 }

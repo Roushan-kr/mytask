@@ -15,6 +15,7 @@ import {
   FolderPlus,
   X,
   Check,
+  Archive,
 } from 'lucide-react';
 
 interface ThreadSidebarProps {
@@ -24,6 +25,7 @@ interface ThreadSidebarProps {
   onThreadCreated: (newThread: IThreadDoc) => void;
   onThreadArchived: (threadId: string) => void;
   onOpenTimeline: () => void;
+  onOpenArchived: () => void;
   userEmail?: string;
 }
 
@@ -43,6 +45,7 @@ export function ThreadSidebar({
   onThreadCreated,
   onThreadArchived,
   onOpenTimeline,
+  onOpenArchived,
   userEmail,
 }: ThreadSidebarProps) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -124,13 +127,21 @@ export function ThreadSidebar({
       </div>
 
       {/* Quick Global Navigation Items */}
-      <div className="px-3 pt-3 pb-1">
+      <div className="px-3 pt-3 pb-1 space-y-1">
         <button
           onClick={onOpenTimeline}
           className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-900 transition-colors"
         >
           <Activity className="w-4 h-4 text-purple-400" />
           <span>Activity Timeline / Calendar</span>
+        </button>
+
+        <button
+          onClick={onOpenArchived}
+          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-900 transition-colors"
+        >
+          <Archive className="w-4 h-4 text-amber-400" />
+          <span>Archived Tasks</span>
         </button>
       </div>
 
