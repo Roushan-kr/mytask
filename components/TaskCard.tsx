@@ -11,6 +11,7 @@ import {
   Edit2,
   Archive,
   ChevronDown,
+  Bell,
 } from 'lucide-react';
 
 interface TaskCardProps {
@@ -22,7 +23,7 @@ interface TaskCardProps {
   onQuickMove: (taskId: string, targetTagId: string) => void;
 }
 
-export function TaskCard({
+function TaskCardComponent({
   task,
   tags,
   onOpenHistory,
@@ -97,6 +98,17 @@ export function TaskCard({
           </button>
 
           {getPriorityBadge(task.priority)}
+
+          {/* Reminder Bell Indicator */}
+          {task.remind_frequency && task.remind_frequency > 0 && (
+            <span
+              className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-mono bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"
+              title={`Web Push reminder active: Every ${task.remind_frequency} hours`}
+            >
+              <Bell className="w-2.5 h-2.5 text-indigo-400" />
+              <span>{task.remind_frequency}h</span>
+            </span>
+          )}
         </div>
 
         {/* Quick Shift Status Dropdown */}
@@ -177,3 +189,5 @@ export function TaskCard({
     </div>
   );
 }
+
+export const TaskCard = React.memo(TaskCardComponent);

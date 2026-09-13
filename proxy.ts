@@ -9,10 +9,13 @@ const COOKIE_NAME = 'taskflow_session';
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Static assets & api public check bypass
+  // Static assets, service workers, and cron/public endpoints bypass
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api/public') ||
+    pathname.startsWith('/api/cron') ||
+    pathname === '/api/push/vapid-key' ||
+    pathname === '/sw.js' ||
     pathname === '/favicon.ico'
   ) {
     return NextResponse.next();

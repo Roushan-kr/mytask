@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -14,7 +14,7 @@ import {
   DragOverEvent,
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import { ITaskDoc, IThreadDoc } from '@/lib/types';
+import { ITaskDoc, IThreadDoc, ITag } from '@/lib/types';
 import { KanbanColumn } from './KanbanColumn';
 import { TaskCard } from './TaskCard';
 import { moveTaskAction } from '@/app/actions/tasks';
@@ -56,28 +56,27 @@ export function KanbanBoard({
     })
   );
 
-  const threadTags = thread.tags || [];
+  const threadTags = useMemo(() => thread.tags || [], [thread.tags]);
 
-  // Group tasks by tagId sorted by order
-  const tasksByTag: { [tagId: string]: ITaskDoc[] } = {};
-  for (const tag of threadTags) {
-    tasksByTag[tag.id] = [];
-  }
-  for (const task of tasks) {
-    if (tasksByTag[task.tagId]) {
-      tasksByTag[task.tagId].push(task);
-    } else {
-      if (threadTags[0]) {
-        if (!tasksByTag[threadTags[0].id]) tasksByTag[threadTags[0].id] = [];
-        tasksByTag[threadTags[0].id].push(task);
+  // Group tasks by tagId sorted by order with useMemo for high-performance rendering
+  const tasksByTag = useMemo(() => {
+    const map: { [tagId: string]: ITaskDoc[] } = {};
+    for (const tag of threadTags) {
+      map[tag.id] = [];
+    }
+    for (const task of tasks) {
+      if (map[task.tagId]) {
+        map[task.tagId].push(task);
+      } else if (threadTags[0]) {
+        if (!map[threadTags[0].id]) map[threadTags[0].id] = [];
+        map[threadTags[0].id].push(task);
       }
     }
-  }
-
-  // Sort each column by order
-  for (const tagId in tasksByTag) {
-    tasksByTag[tagId].sort((a, b) => (a.order || 0) - (b.order || 0));
-  }
+    for (const tagId in map) {
+      map[tagId].sort((a, b) => (a.order || 0) - (b.order || 0));
+    }
+    return map;
+  }, [tasks, threadTags]);
 
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
@@ -147,6 +146,14 @@ export function KanbanBoard({
     const prevOrder = prevTask ? prevTask.order : null;
     const nextOrder = nextTask ? nextTask.order : null;
     const newFractionalOrder = calculateMidpointOrder(prevOrder, nextOrder);
+
+    // If dropped back in the same column and same position, exit cleanly without network call
+    if (
+      sourceTagId === targetTagId &&
+      Math.abs((activeTaskItem.order || 0) - newFractionalOrder) < 0.0001
+    ) {
+      return;
+    }
 
     const rollbackSnapshot = [...tasks];
 

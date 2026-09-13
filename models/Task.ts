@@ -15,10 +15,12 @@ export interface ITask extends Document {
   tagId: string;
   order: number;
   priority: 'low' | 'medium' | 'high' | 'urgent';
-  dueDate?: Date;
+  dueDate?: Date | null;
+  remind_frequency?: number | null; // In hours (e.g. 24, 72, 39)
+  last_reminded?: Date | null; // Timestamp of when last reminder notification was triggered
   history: ITaskHistory[];
   isArchived: boolean;
-  archivedAt?: Date;
+  archivedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -56,6 +58,8 @@ const TaskSchema = new Schema<ITask>(
       default: 'medium',
     },
     dueDate: { type: Date },
+    remind_frequency: { type: Number, min: 1, default: null },
+    last_reminded: { type: Date, default: null },
     history: { type: [TaskHistorySchema], default: [] },
     isArchived: { type: Boolean, default: false, index: true },
     archivedAt: { type: Date },
@@ -65,9 +69,10 @@ const TaskSchema = new Schema<ITask>(
   }
 );
 
-// Compound and specialized indexes for high-speed queries & calendar grouping
+// High-speed compound indexes for Kanban lookups, calendar timeline, and cron reminder checks
 TaskSchema.index({ threadId: 1, tagId: 1, order: 1 });
 TaskSchema.index({ threadId: 1, isArchived: 1 });
+TaskSchema.index({ isArchived: 1, tagId: 1, remind_frequency: 1 });
 TaskSchema.index({ 'history.timestamp': 1 });
 
 export const Task: Model<ITask> =

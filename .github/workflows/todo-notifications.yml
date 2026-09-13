@@ -1,0 +1,34 @@
+name: Todo Notifications
+
+on:
+  schedule:
+    - cron: "0 * * * *" # Runs every hour
+  workflow_dispatch: # Allows manual trigger from GitHub Actions tab
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger Todo Notification Worker
+        run: |
+          APP_URL="${{ secrets.APP_URL }}"
+          if [ -z "$APP_URL" ]; then
+            APP_URL="https://mytask.fossptu.dev"
+          fi
+          echo "Triggering notification endpoint on $APP_URL/api/cron/todos..."
+          
+          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X POST "$APP_URL/api/cron/todos" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json")
+            
+          HTTP_STATUS=$(echo "$RESPONSE" | tr -d '\r' | sed -n 's/.*HTTP_STATUS:\([0-9]*\)$/\1/p')
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          
+          echo "Response Body: $BODY"
+          echo "HTTP Status: $HTTP_STATUS"
+          
+          if [ "$HTTP_STATUS" -ne 200 ]; then
+            echo "Error: Cron notification request failed with HTTP $HTTP_STATUS"
+            exit 1
+          fi

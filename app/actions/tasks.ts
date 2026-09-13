@@ -46,6 +46,7 @@ export async function createTaskAction(payload: {
   tagId: string;
   priority?: 'low' | 'medium' | 'high' | 'urgent';
   dueDate?: string | null;
+  remind_frequency?: number | null;
   prevOrder?: number | null;
   nextOrder?: number | null;
 }): Promise<{ success: boolean; data?: ITaskDoc; error?: string }> {
@@ -84,6 +85,7 @@ export async function createTaskAction(payload: {
       tagId: parsed.data.tagId,
       priority: parsed.data.priority || 'medium',
       dueDate: parsed.data.dueDate ? new Date(parsed.data.dueDate) : undefined,
+      remind_frequency: parsed.data.remind_frequency ?? undefined,
       order: taskOrder,
       history: [
         {
@@ -109,6 +111,7 @@ export async function updateTaskAction(payload: {
   description?: string;
   priority?: 'low' | 'medium' | 'high' | 'urgent';
   dueDate?: string | null;
+  remind_frequency?: number | null;
 }): Promise<{ success: boolean; data?: ITaskDoc; error?: string }> {
   try {
     const session = await getCurrentSession();
@@ -129,6 +132,9 @@ export async function updateTaskAction(payload: {
     if (parsed.data.priority !== undefined) updates.priority = parsed.data.priority;
     if (parsed.data.dueDate !== undefined) {
       updates.dueDate = parsed.data.dueDate ? new Date(parsed.data.dueDate) : null;
+    }
+    if (parsed.data.remind_frequency !== undefined) {
+      updates.remind_frequency = parsed.data.remind_frequency ?? null;
     }
 
     if (parsed.data.priority && parsed.data.priority !== existing.priority) {
@@ -185,10 +191,17 @@ export async function moveTaskAction(payload: {
     const fromTag = task.tagId;
     const toTag = parsed.data.targetTagId;
     const isStatusChanged = fromTag !== toTag;
+    const isOrderChanged = Math.abs((task.order || 0) - (newOrder || 0)) > 0.00001;
+
+    // If neither status nor position changed, skip DB update & history append
+    if (!isStatusChanged && !isOrderChanged) {
+      return { success: true, data: JSON.parse(JSON.stringify(task)) };
+    }
 
     task.tagId = toTag;
     task.order = newOrder;
 
+    // Only record in Audit History when the status tag genuinely changes
     if (isStatusChanged) {
       task.history.push({
         action: 'moved',
@@ -196,14 +209,6 @@ export async function moveTaskAction(payload: {
         toTag,
         timestamp: new Date(),
         details: `Moved from '${fromTag}' to '${toTag}'`,
-      });
-    } else {
-      task.history.push({
-        action: 'moved',
-        fromTag,
-        toTag,
-        timestamp: new Date(),
-        details: `Reordered within '${toTag}'`,
       });
     }
 

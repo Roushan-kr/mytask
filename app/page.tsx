@@ -11,6 +11,7 @@ import { TaskModal } from '@/components/TaskModal';
 import { TaskHistoryModal } from '@/components/TaskHistoryModal';
 import { TagManagerModal } from '@/components/TagManagerModal';
 import { TimelineDrawer } from '@/components/TimelineDrawer';
+import { NotificationBell } from '@/components/NotificationBell';
 import { Plus, Search, Filter, Layers, CheckCircle2, ListTodo } from 'lucide-react';
 
 export default function DashboardPage() {
@@ -202,12 +203,12 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Header Stats & Quick Action */}
-          <div className="flex items-center gap-4">
-            <div className="hidden md:flex items-center gap-3 text-xs text-slate-400">
+          {/* Header Stats & Quick Actions */}
+          <div className="flex items-center gap-3 sm:gap-4">
+            <div className="hidden lg:flex items-center gap-3 text-xs text-slate-400">
               <span className="flex items-center gap-1.5 font-medium">
                 <ListTodo className="w-4 h-4 text-indigo-400" />
-                <span className="text-white font-semibold font-mono">{tasks.length}</span> Total Tasks
+                <span className="text-white font-semibold font-mono">{tasks.length}</span> Total
               </span>
               <span className="text-slate-700">|</span>
               <span className="flex items-center gap-1.5 font-medium">
@@ -217,6 +218,9 @@ export default function DashboardPage() {
                 </span> Completed
               </span>
             </div>
+
+            {/* Web Push Notification Bell Toggle */}
+            <NotificationBell />
 
             {activeThread && (
               <button

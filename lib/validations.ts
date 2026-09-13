@@ -40,6 +40,7 @@ export const createTaskSchema = z.object({
   tagId: z.string().min(1, 'Tag status is required'),
   priority: z.enum(['low', 'medium', 'high', 'urgent']).default('medium'),
   dueDate: z.string().nullable().optional(),
+  remind_frequency: z.number().positive().nullable().optional(),
   prevOrder: z.number().nullable().optional(),
   nextOrder: z.number().nullable().optional(),
 });
@@ -50,6 +51,7 @@ export const updateTaskSchema = z.object({
   description: z.string().max(2000).optional(),
   priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
   dueDate: z.string().nullable().optional(),
+  remind_frequency: z.number().positive().nullable().optional(),
 });
 
 export const moveTaskSchema = z.object({
@@ -68,4 +70,13 @@ export const archiveTaskSchema = z.object({
 
 export const archiveThreadSchema = z.object({
   threadId: z.string().min(1, 'Thread ID is required'),
+});
+
+export const pushSubscriptionSchema = z.object({
+  endpoint: z.string().url('Valid subscription endpoint required'),
+  keys: z.object({
+    p256dh: z.string().min(1, 'p256dh key is required'),
+    auth: z.string().min(1, 'auth key is required'),
+  }),
+  userAgent: z.string().optional(),
 });
