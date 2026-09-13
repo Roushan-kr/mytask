@@ -18,6 +18,9 @@ Deploy your own instance of TaskFlow Pro to Vercel in seconds:
 
 ---
 
+- 🤖 **Model Context Protocol (MCP) Server**:
+  - Exposes an official, serverless-ready `/api/mcp` endpoint powered by `@modelcontextprotocol/sdk`.
+  - Enables AI agents in Claude Desktop, Cursor, and Raycast to query tasks, create subtask checklists, and move Kanban columns over HTTPS.
 - ⌨️ **Command Palette (`Ctrl+K` / `Cmd+K`) & Keyboard Shortcuts**:
   - Global command menu to search across tasks, jump instantly to any thread, trigger CSV/JSON exports, or open archived items without touching the mouse.
   - Quick-capture shortcut (<kbd>N</kbd> / <kbd>C</kbd>) from anywhere in the app.
@@ -124,6 +127,41 @@ docker compose up -d
 ```
 
 TaskFlow and MongoDB will automatically spin up with persistent volumes (`mongo-data`), health checks, and container auto-restart at [http://localhost:3000](http://localhost:3000).
+
+---
+
+## 🤖 Connect Your AI via Model Context Protocol (MCP)
+
+TaskFlow exposes an official, serverless-ready **Model Context Protocol (MCP)** endpoint at `/api/mcp`. You can manage your tasks, create checklist subtasks, and move Kanban columns directly from **Claude Desktop, Cursor, Antigravity, Raycast, or custom AI agents**.
+
+### 🔌 Connecting Claude Desktop / Cursor
+
+Add the following to your `claude_desktop_config.json` or Cursor MCP settings:
+
+```json
+{
+  "mcpServers": {
+    "taskflow": {
+      "url": "https://your-domain.com/api/mcp",
+      "headers": {
+        "Authorization": "Bearer your_mcp_api_key_or_auth_secret"
+      }
+    }
+  }
+}
+```
+
+### 🛠️ Available AI Tools
+
+| Tool | Description |
+| :--- | :--- |
+| `list_threads` | List all workspaces and custom Kanban status columns. |
+| `get_tasks` | Search & filter tasks by keyword, priority, column, or due date. |
+| `create_task` | Create a task with title, priority, due date, and markdown checklists (`- [ ]`). |
+| `move_task_status` | Shift task to a new status (e.g. `move_task_status(taskId, "done")`). |
+| `update_task` | Edit title, notes, priority, or reminder intervals. |
+| `archive_task` | Move a task to the archive without losing history. |
+| `get_workspace_stats` | Instant summary of pending, completed, urgent, and overdue tasks. |
 
 ---
 
