@@ -1,0 +1,48 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: taskflow-app:latest
+    container_name: taskflow_app
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=production
+      - MONGODB_URI=mongodb://db:27017/taskflow
+      - AUTH_EMAIL=${AUTH_EMAIL:-admin@taskflow.local}
+      - AUTH_PASSWORD=${AUTH_PASSWORD:-admin_password_123}
+      - AUTH_SECRET=${AUTH_SECRET:-change_this_to_a_secure_jwt_secret_min_32_chars!}
+      - NEXT_PUBLIC_VAPID_PUBLIC_KEY=${NEXT_PUBLIC_VAPID_PUBLIC_KEY:-}
+      - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}
+      - VAPID_SUBJECT=${VAPID_SUBJECT:-mailto:admin@taskflow.local}
+      - CRON_SECRET=${CRON_SECRET:-personal_cron_secret_key_123}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - taskflow-network
+
+  db:
+    image: mongo:7.0
+    container_name: taskflow_mongodb
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - taskflow-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  mongo-data:
+    driver: local
+
+networks:
+  taskflow-network:
+    driver: bridge
