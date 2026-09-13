@@ -14,7 +14,15 @@ import { TagManagerModal } from '@/components/TagManagerModal';
 import { TimelineDrawer } from '@/components/TimelineDrawer';
 import { NotificationBell } from '@/components/NotificationBell';
 import { ArchivedTasksModal } from '@/components/ArchivedTasksModal';
-import { Plus, Search, Filter, Layers, CheckCircle2, ListTodo } from 'lucide-react';
+import {
+  Plus,
+  Search,
+  Filter,
+  Layers,
+  CheckCircle2,
+  ListTodo,
+  Menu,
+} from 'lucide-react';
 
 function DashboardContent() {
   const router = useRouter();
@@ -26,6 +34,9 @@ function DashboardContent() {
   const [tasks, setTasks] = useState<ITaskDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [userEmail, setUserEmail] = useState<string>('admin@taskflow.local');
+
+  // Mobile sidebar state
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   // Search & Filters for Tasks
   const [taskSearchQuery, setTaskSearchQuery] = useState('');
@@ -192,7 +203,7 @@ function DashboardContent() {
 
   return (
     <main className="flex h-screen w-screen overflow-hidden bg-slate-950 text-slate-100">
-      {/* Left Sidebar: Threads Navigation (Matching Sketch) */}
+      {/* Left Sidebar: Threads Navigation (Responsive Mobile Drawer + Desktop Sidebar) */}
       <ThreadSidebar
         threads={threads}
         activeThreadId={activeThreadId}
@@ -201,37 +212,49 @@ function DashboardContent() {
         onThreadArchived={handleThreadArchived}
         onOpenTimeline={() => setIsTimelineOpen(true)}
         onOpenArchived={() => setIsArchivedModalOpen(true)}
+        isMobileOpen={isMobileSidebarOpen}
+        onMobileClose={() => setIsMobileSidebarOpen(false)}
         userEmail={userEmail}
       />
 
       {/* Main Workspace Area */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-950/60">
+      <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-950/60 min-w-0">
         {/* Top Navbar */}
-        <header className="h-16 border-b border-slate-800/80 px-6 flex items-center justify-between bg-slate-950/80 backdrop-blur-md shrink-0">
-          {/* Quick Search & Filters */}
-          <div className="flex items-center gap-3 w-full max-w-lg">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+        <header className="h-14 sm:h-16 border-b border-slate-800/80 px-3 sm:px-6 flex items-center justify-between gap-2.5 bg-slate-950/80 backdrop-blur-md shrink-0">
+          {/* Mobile Hamburger + Quick Search & Filters */}
+          <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 max-w-xl">
+            {/* Hamburger Button for Mobile */}
+            <button
+              onClick={() => setIsMobileSidebarOpen(true)}
+              className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white md:hidden shrink-0 transition-colors"
+              title="Open Threads Menu"
+            >
+              <Menu className="w-4 h-4" />
+            </button>
+
+            {/* Search Input */}
+            <div className="relative flex-1 min-w-0">
+              <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 type="text"
                 value={taskSearchQuery}
                 onChange={(e) => setTaskSearchQuery(e.target.value)}
-                placeholder="Search tasks across columns..."
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                placeholder="Search tasks..."
+                className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-8 pr-3 py-1.5 sm:py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
               />
             </div>
 
             {/* Priority Filter */}
-            <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs">
+            <div className="hidden xs:flex sm:flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs shrink-0">
               <Filter className="w-3.5 h-3.5 text-slate-500 ml-1.5" />
               <select
                 value={priorityFilter}
                 onChange={(e) => setPriorityFilter(e.target.value)}
                 className="bg-transparent text-slate-300 text-xs focus:outline-none pr-2 py-0.5 cursor-pointer"
               >
-                <option value="all" className="bg-slate-900">All Priorities</option>
+                <option value="all" className="bg-slate-900">All</option>
                 <option value="low" className="bg-slate-900">Low</option>
-                <option value="medium" className="bg-slate-900">Medium</option>
+                <option value="medium" className="bg-slate-900">Med</option>
                 <option value="high" className="bg-slate-900">High</option>
                 <option value="urgent" className="bg-slate-900">Urgent</option>
               </select>
@@ -239,8 +262,8 @@ function DashboardContent() {
           </div>
 
           {/* Header Stats & Quick Actions */}
-          <div className="flex items-center gap-3 sm:gap-4">
-            <div className="hidden lg:flex items-center gap-3 text-xs text-slate-400">
+          <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+            <div className="hidden xl:flex items-center gap-3 text-xs text-slate-400">
               <span className="flex items-center gap-1.5 font-medium">
                 <ListTodo className="w-4 h-4 text-indigo-400" />
                 <span className="text-white font-semibold font-mono">{tasks.length}</span> Total
@@ -260,10 +283,11 @@ function DashboardContent() {
             {activeThread && (
               <button
                 onClick={() => handleOpenAddTask()}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-xs font-semibold text-white shadow-lg shadow-indigo-500/20 transition-all hover:scale-[1.02]"
+                className="flex items-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-xs font-semibold text-white shadow-lg shadow-indigo-500/20 transition-all hover:scale-[1.02]"
               >
                 <Plus className="w-4 h-4" />
-                <span>New Task</span>
+                <span className="hidden sm:inline">New Task</span>
+                <span className="sm:hidden">Task</span>
               </button>
             )}
           </div>

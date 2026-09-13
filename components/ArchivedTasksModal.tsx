@@ -125,8 +125,8 @@ export function ArchivedTasksModal({
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-in fade-in">
-      <div className="glass-panel w-full max-w-3xl rounded-2xl p-6 shadow-2xl border border-white/10 relative max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-in fade-in">
+      <div className="glass-panel w-full max-w-3xl rounded-2xl p-4 sm:p-6 shadow-2xl border border-white/10 relative max-h-[92vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-slate-800 shrink-0">
           <div className="flex items-center gap-3">

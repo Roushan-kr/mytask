@@ -236,43 +236,35 @@ export function KanbanBoard({
       )}
 
       {/* Board Controls / Columns Header */}
-      <div className="px-6 py-3 flex items-center justify-between border-b border-slate-800/80 bg-slate-950/40">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
+      <div className="px-3 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between gap-2 border-b border-slate-800/80 bg-slate-950/40 flex-wrap">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
             <div
-              className="w-3.5 h-3.5 rounded-full"
+              className="w-3 h-3 sm:w-3.5 sm:h-3.5 rounded-full shrink-0"
               style={{ backgroundColor: thread.color || '#6366f1' }}
             />
-            <h1 className="text-lg font-bold text-white tracking-tight">{thread.name}</h1>
+            <h1 className="text-base sm:text-lg font-bold text-white tracking-tight truncate">{thread.name}</h1>
           </div>
           {thread.description && (
-            <span className="text-xs text-slate-400 border-l border-slate-700 pl-3">
+            <span className="hidden sm:inline text-xs text-slate-400 border-l border-slate-700 pl-3 truncate max-w-xs">
               {thread.description}
             </span>
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           <button
             onClick={onOpenTagManager}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-xs font-medium text-slate-300 hover:text-white hover:border-slate-600 transition-colors"
+            className="flex items-center gap-1 sm:gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-xs font-medium text-slate-300 hover:text-white hover:border-slate-600 transition-colors shadow-sm"
           >
             <SlidersHorizontal className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Customize Columns</span>
-          </button>
-
-          <button
-            onClick={() => onAddTask(threadTags[0]?.id)}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-xs font-medium text-white transition-colors shadow-md shadow-indigo-600/20"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Add Task</span>
+            <span>Columns</span>
           </button>
         </div>
       </div>
 
       {/* DnD Kanban Columns Stream */}
-      <div className="flex-1 overflow-x-auto p-6">
+      <div className="flex-1 overflow-x-auto p-3 sm:p-6 snap-x snap-mandatory sm:snap-none">
         <DndContext
           sensors={sensors}
           collisionDetection={closestCorners}
@@ -280,7 +272,7 @@ export function KanbanBoard({
           onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}
         >
-          <div className="flex items-start gap-5 h-full pb-4 min-w-max">
+          <div className="flex items-start gap-4 sm:gap-5 h-full pb-4 min-w-max">
             {threadTags.map((tag) => (
               <KanbanColumn
                 key={tag.id}
@@ -298,7 +290,7 @@ export function KanbanBoard({
             {/* Add Column Quick Placeholder Button */}
             <div
               onClick={onOpenTagManager}
-              className="w-72 shrink-0 h-40 rounded-2xl border-2 border-dashed border-slate-800 hover:border-indigo-500/50 hover:bg-slate-900/40 flex flex-col items-center justify-center text-slate-500 hover:text-indigo-300 cursor-pointer transition-all duration-200"
+              className="w-[84vw] max-w-[320px] sm:w-80 shrink-0 snap-center h-36 sm:h-40 rounded-2xl border-2 border-dashed border-slate-800 hover:border-indigo-500/50 hover:bg-slate-900/40 flex flex-col items-center justify-center text-slate-500 hover:text-indigo-300 cursor-pointer transition-all duration-200"
             >
               <Plus className="w-6 h-6 mb-1 text-slate-400" />
               <span className="text-xs font-semibold">+ Add New Column</span>

@@ -82,19 +82,19 @@ function TaskCardComponent({
     <div
       ref={setNodeRef}
       style={style}
-      className="glass-card group rounded-xl p-3.5 shadow-md hover:shadow-xl transition-all duration-200 relative border border-white/5 hover:border-slate-700/80 bg-slate-900/90"
+      className="glass-card group rounded-xl p-3 shadow-md hover:shadow-xl transition-all duration-200 relative border border-white/5 hover:border-slate-700/80 bg-slate-900/90 w-full overflow-hidden"
     >
       {/* Top Header Row */}
-      <div className="flex items-center justify-between gap-2 mb-2">
-        <div className="flex items-center gap-1.5">
+      <div className="flex items-center justify-between gap-1.5 mb-2 flex-wrap">
+        <div className="flex items-center gap-1.5 flex-wrap min-w-0">
           {/* Drag Handle */}
           <button
             {...attributes}
             {...listeners}
-            className="cursor-grab active:cursor-grabbing p-1 text-slate-500 hover:text-slate-300 rounded transition-colors -ml-1"
+            className="cursor-grab active:cursor-grabbing p-0.5 text-slate-500 hover:text-slate-300 rounded transition-colors -ml-1 shrink-0"
             title="Drag to reorder or move column"
           >
-            <GripVertical className="w-4 h-4" />
+            <GripVertical className="w-3.5 h-3.5" />
           </button>
 
           {getPriorityBadge(task.priority)}
@@ -102,7 +102,7 @@ function TaskCardComponent({
           {/* Reminder Bell Indicator */}
           {task.remind_frequency && task.remind_frequency > 0 && (
             <span
-              className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-mono bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"
+              className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-mono bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 shrink-0"
               title={`Web Push reminder active: Every ${task.remind_frequency} hours`}
             >
               <Bell className="w-2.5 h-2.5 text-indigo-400" />
@@ -112,11 +112,11 @@ function TaskCardComponent({
         </div>
 
         {/* Quick Shift Status Dropdown */}
-        <div className="relative group/tagselect">
+        <div className="relative group/tagselect shrink-0 ml-auto">
           <select
             value={task.tagId}
             onChange={(e) => onQuickMove(taskId, e.target.value)}
-            className="text-[11px] font-medium bg-slate-800/80 hover:bg-slate-800 text-slate-300 rounded-md pl-2 pr-6 py-0.5 border border-slate-700/70 focus:outline-none focus:ring-1 focus:ring-indigo-500 appearance-none cursor-pointer capitalize"
+            className="text-[10px] font-medium bg-slate-800/90 hover:bg-slate-800 text-slate-300 rounded-md pl-2 pr-5 py-0.5 border border-slate-700/70 focus:outline-none focus:ring-1 focus:ring-indigo-500 appearance-none cursor-pointer capitalize max-w-[85px] truncate"
             title="Quick Shift Status"
           >
             {tags.map((t) => (
@@ -125,18 +125,18 @@ function TaskCardComponent({
               </option>
             ))}
           </select>
-          <ChevronDown className="w-3 h-3 text-slate-400 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <ChevronDown className="w-3 h-3 text-slate-400 absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none" />
         </div>
       </div>
 
       {/* Task Title */}
-      <h3 className="text-sm font-semibold text-white group-hover:text-indigo-200 transition-colors leading-snug mb-1">
+      <h3 className="text-sm font-semibold text-white group-hover:text-indigo-200 transition-colors leading-snug mb-1 break-words">
         {task.title}
       </h3>
 
       {/* Task Description */}
       {task.description && (
-        <p className="text-xs text-slate-400 line-clamp-2 mb-3">
+        <p className="text-xs text-slate-400 line-clamp-2 mb-3 break-words overflow-hidden text-ellipsis">
           {task.description}
         </p>
       )}
