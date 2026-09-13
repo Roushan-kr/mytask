@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { getTaskTimelineAction } from '@/app/actions/tasks';
 import { X, Calendar, Clock, Activity, ArrowRight, PlusCircle, RefreshCw, Archive, Filter } from 'lucide-react';
 
+import { useEscapeKey } from '@/lib/hooks/useEscapeKey';
+
 interface TimelineDrawerProps {
   isOpen: boolean;
   onClose: () => void;
@@ -38,6 +40,8 @@ export function TimelineDrawer({ isOpen, onClose, threadId, threadName }: Timeli
       });
     }
   }, [isOpen, threadId]);
+
+  useEscapeKey(isOpen, onClose);
 
   if (!isOpen) return null;
 

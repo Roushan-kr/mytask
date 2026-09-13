@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   X,
   Download,
@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import { exportThreadBackupAction, exportAllBackupAction, importTasksIntoThreadAction } from '@/app/actions/backup';
 import { tasksToCsvString, parseCsvStringToTasks, ICsvTaskRow } from '@/lib/csv';
+
+import { useEscapeKey } from '@/lib/hooks/useEscapeKey';
 
 interface DataBackupModalProps {
   isOpen: boolean;
@@ -43,6 +45,8 @@ export function DataBackupModal({
   const [parsedImportRows, setParsedImportRows] = useState<ICsvTaskRow[]>([]);
   const [importType, setImportType] = useState<'csv' | 'json' | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEscapeKey(isOpen, onClose);
 
   if (!isOpen) return null;
 

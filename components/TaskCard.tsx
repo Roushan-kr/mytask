@@ -4,6 +4,7 @@ import React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { ITaskDoc, ITag } from '@/lib/types';
+import { calculateSubtaskProgress } from '@/lib/subtasks';
 import {
   GripVertical,
   Clock,
@@ -12,6 +13,7 @@ import {
   Archive,
   ChevronDown,
   Bell,
+  CheckSquare,
 } from 'lucide-react';
 
 interface TaskCardProps {
@@ -136,10 +138,50 @@ function TaskCardComponent({
 
       {/* Task Description */}
       {task.description && (
-        <p className="text-xs text-slate-400 line-clamp-2 mb-3 break-words overflow-hidden text-ellipsis">
+        <p className="text-xs text-slate-400 line-clamp-2 mb-2.5 break-words overflow-hidden text-ellipsis">
           {task.description}
         </p>
       )}
+
+      {/* Subtask / Checklist Progress Bar */}
+      {(() => {
+        const progress = calculateSubtaskProgress(task.description);
+        if (progress.total === 0) return null;
+        const isComplete = progress.completed === progress.total;
+
+        return (
+          <div className="mb-2.5 p-2 rounded-lg bg-slate-950/60 border border-slate-800/80 space-y-1.5">
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="flex items-center gap-1.5 font-medium text-slate-300">
+                <CheckSquare
+                  className={`w-3 h-3 ${isComplete ? 'text-emerald-400' : 'text-indigo-400'}`}
+                />
+                <span>
+                  {progress.completed}/{progress.total} Subtasks
+                </span>
+              </span>
+              <span
+                className={`font-mono text-[10px] font-semibold ${
+                  isComplete ? 'text-emerald-400' : 'text-slate-400'
+                }`}
+              >
+                {progress.percent}%
+              </span>
+            </div>
+            {/* Visual Bar */}
+            <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+              <div
+                className={`h-full transition-all duration-300 rounded-full ${
+                  isComplete
+                    ? 'bg-gradient-to-r from-emerald-500 to-teal-400'
+                    : 'bg-gradient-to-r from-indigo-500 to-violet-500'
+                }`}
+                style={{ width: `${progress.percent}%` }}
+              />
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Footer info: Due Date, History Trigger & Card Actions */}
       <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 text-[11px] text-slate-400">

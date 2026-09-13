@@ -18,6 +18,12 @@ Deploy your own instance of TaskFlow Pro to Vercel in seconds:
 
 ---
 
+- ⌨️ **Command Palette (`Ctrl+K` / `Cmd+K`) & Keyboard Shortcuts**:
+  - Global command menu to search across tasks, jump instantly to any thread, trigger CSV/JSON exports, or open archived items without touching the mouse.
+  - Quick-capture shortcut (<kbd>N</kbd> / <kbd>C</kbd>) from anywhere in the app.
+- ✅ **Markdown Subtasks & Visual Checklist Progress**:
+  - Write standard GitHub-flavored Markdown checkboxes (`- [ ]`, `- [x]`) in task descriptions.
+  - Real-time animated progress bar (`✓ 2/4 Subtasks (50%)`) directly on Kanban cards and interactive checkbox toggles in the Task Modal.
 - 📱 **Progressive Web App (PWA) & 1-Click Install**:
   - Full PWA support with native `manifest.webmanifest`, standalone mode, and dynamic icon assets.
   - 1-click **Install App** button for Android/Desktop Chrome and interactive iOS Safari step-by-step guide.
@@ -101,6 +107,36 @@ In your GitHub repository settings under **Secrets and variables > Actions**, ad
 - `CRON_SECRET`: The matching secret configured in your application `.env.local`
 
 The workflow (`.github/workflows/todo-notifications.yml`) will automatically ping `/api/cron/todos` every hour.
+
+---
+
+## 🐳 1-Command Self-Hosting (Docker & Docker Compose)
+
+Deploy TaskFlow on any VPS, HomeLab, Raspberry Pi, Unraid, or Synology server:
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/roushan-kr/mytask.git
+cd mytask
+
+# 2. Run with Docker Compose
+docker compose up -d
+```
+
+TaskFlow and MongoDB will automatically spin up with persistent volumes (`mongo-data`), health checks, and container auto-restart at [http://localhost:3000](http://localhost:3000).
+
+---
+
+## ⌨️ Keyboard Shortcuts & Power-User Navigation
+
+| Shortcut | Action |
+| :--- | :--- |
+| <kbd>⌘ K</kbd> or <kbd>Ctrl K</kbd> | Open Command Palette (Jump to threads, actions, tasks) |
+| <kbd>N</kbd> or <kbd>C</kbd> | Quick Create New Task (when not typing in an input) |
+| <kbd>?</kbd> | Open Command Palette Shortcuts Help |
+| <kbd>↑</kbd> / <kbd>↓</kbd> | Navigate Palette Results |
+| <kbd>↵ Enter</kbd> | Execute Selected Command |
+| <kbd>ESC</kbd> | Close Modal / Palette |
 
 ---
 

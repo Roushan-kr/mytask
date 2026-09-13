@@ -24,7 +24,6 @@ export const metadata: Metadata = {
   title: 'TaskFlow Pro - Dynamic Thread & Kanban Task Manager',
   description:
     'Dynamic multi-thread task management board with customizable status tags, drag & drop, timestamped audit logs, Web Push reminders, and instant JSON/CSV backups.',
-  manifest: '/manifest.webmanifest',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',

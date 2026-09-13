@@ -15,6 +15,7 @@ import { TimelineDrawer } from '@/components/TimelineDrawer';
 import { NotificationBell } from '@/components/NotificationBell';
 import { ArchivedTasksModal } from '@/components/ArchivedTasksModal';
 import { DataBackupModal } from '@/components/DataBackupModal';
+import { CommandPalette } from '@/components/CommandPalette';
 import {
   Plus,
   Search,
@@ -23,6 +24,7 @@ import {
   CheckCircle2,
   ListTodo,
   Menu,
+  Command,
 } from 'lucide-react';
 
 function DashboardContent() {
@@ -53,6 +55,7 @@ function DashboardContent() {
   const [isTimelineOpen, setIsTimelineOpen] = useState(false);
   const [isArchivedModalOpen, setIsArchivedModalOpen] = useState(false);
   const [isDataBackupOpen, setIsDataBackupOpen] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
 
   // Load User Session & Initial Threads
   const loadInitialData = useCallback(async () => {
@@ -190,6 +193,44 @@ function DashboardContent() {
     loadTasksForThread(updatedThread._id);
   };
 
+  // Global Keyboard Shortcuts (Cmd+K, N, ?, etc.)
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // Command Palette trigger
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsCommandPaletteOpen((prev) => !prev);
+        return;
+      }
+
+      // Skip single-key shortcuts when typing in inputs/textareas/selects
+      const activeTag = document.activeElement?.tagName.toLowerCase();
+      if (activeTag === 'input' || activeTag === 'textarea' || activeTag === 'select') {
+        return;
+      }
+
+      if (e.key.toLowerCase() === 'n' || e.key.toLowerCase() === 'c') {
+        e.preventDefault();
+        handleOpenAddTask();
+      } else if (e.key.toLowerCase() === 't') {
+        e.preventDefault();
+        setIsTimelineOpen((prev) => !prev);
+      } else if (e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        setIsDataBackupOpen((prev) => !prev);
+      } else if (e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        setIsArchivedModalOpen((prev) => !prev);
+      } else if (e.key === '?') {
+        e.preventDefault();
+        setIsCommandPaletteOpen(true);
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [handleOpenAddTask]);
+
   // Filter Tasks based on search & priority
   const visibleTasks = tasks.filter((t) => {
     const matchesSearch =
@@ -235,16 +276,25 @@ function DashboardContent() {
               <Menu className="w-4 h-4" />
             </button>
 
-            {/* Search Input */}
-            <div className="relative flex-1 min-w-0">
+            {/* Search Input with Cmd+K Badge */}
+            <div className="relative flex-1 min-w-0 flex items-center">
               <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 type="text"
                 value={taskSearchQuery}
                 onChange={(e) => setTaskSearchQuery(e.target.value)}
                 placeholder="Search tasks..."
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-8 pr-3 py-1.5 sm:py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-8 pr-12 py-1.5 sm:py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
               />
+              <button
+                type="button"
+                onClick={() => setIsCommandPaletteOpen(true)}
+                className="hidden sm:flex items-center gap-0.5 absolute right-2 px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700/60 text-[10px] font-mono text-slate-400 hover:text-slate-200 transition select-none"
+                title="Open Command Palette (⌘K)"
+              >
+                <Command className="w-2.5 h-2.5" />
+                <span>K</span>
+              </button>
             </div>
 
             {/* Priority Filter */}
@@ -391,6 +441,22 @@ function DashboardContent() {
           }}
         />
       )}
+
+      {/* Command Palette (Cmd+K / Ctrl+K) */}
+      <CommandPalette
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setIsCommandPaletteOpen(false)}
+        threads={threads}
+        activeThread={activeThread}
+        tasks={tasks}
+        onSelectThread={handleSelectThread}
+        onOpenAddTask={() => handleOpenAddTask()}
+        onOpenDataBackup={() => setIsDataBackupOpen(true)}
+        onOpenTimeline={() => setIsTimelineOpen(true)}
+        onOpenArchived={() => setIsArchivedModalOpen(true)}
+        onOpenTagManager={() => setIsTagManagerOpen(true)}
+        onEditTask={handleEditTask}
+      />
     </main>
   );
 }

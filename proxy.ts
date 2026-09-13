@@ -9,14 +9,22 @@ const COOKIE_NAME = 'taskflow_session';
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Static assets, service workers, and cron/public endpoints bypass
+  // Static assets, service workers, manifest, and cron/public endpoints bypass
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api/public') ||
     pathname.startsWith('/api/cron') ||
     pathname === '/api/push/vapid-key' ||
     pathname === '/sw.js' ||
-    pathname === '/favicon.ico'
+    pathname === '/manifest.webmanifest' ||
+    pathname === '/manifest.json' ||
+    pathname === '/icon.svg' ||
+    pathname === '/favicon.ico' ||
+    pathname.endsWith('.svg') ||
+    pathname.endsWith('.png') ||
+    pathname.endsWith('.ico') ||
+    pathname.endsWith('.json') ||
+    pathname.endsWith('.webmanifest')
   ) {
     return NextResponse.next();
   }
@@ -51,5 +59,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!api/auth|_next/static|_next/image|favicon.ico).*)'],
+  matcher: ['/((?!api/auth|_next/static|_next/image|favicon.ico|icon.svg|sw.js|manifest.webmanifest|manifest.json).*)'],
 };

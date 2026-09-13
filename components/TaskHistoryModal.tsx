@@ -3,6 +3,7 @@
 import React from 'react';
 import { ITaskDoc, ITag } from '@/lib/types';
 import { X, Clock, ArrowRight, PlusCircle, RefreshCw, Archive, Calendar } from 'lucide-react';
+import { useEscapeKey } from '@/lib/hooks/useEscapeKey';
 
 interface TaskHistoryModalProps {
   isOpen: boolean;
@@ -12,6 +13,8 @@ interface TaskHistoryModalProps {
 }
 
 export function TaskHistoryModal({ isOpen, onClose, task, tags }: TaskHistoryModalProps) {
+  useEscapeKey(isOpen, onClose);
+
   if (!isOpen || !task) return null;
 
   const getTagName = (tagId?: string | null) => {
@@ -30,8 +33,14 @@ export function TaskHistoryModal({ isOpen, onClose, task, tags }: TaskHistoryMod
   const history = [...(task.history || [])].reverse();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
-      <div className="glass-panel w-full max-w-lg rounded-2xl p-4 sm:p-6 shadow-2xl border border-white/10 relative max-h-[88vh] flex flex-col overflow-hidden">
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="glass-panel w-full max-w-lg rounded-2xl p-4 sm:p-6 shadow-2xl border border-white/10 relative max-h-[88vh] flex flex-col overflow-hidden"
+      >
         {/* Header */}
         <div className="flex items-center justify-between pb-3.5 border-b border-slate-800 shrink-0">
           <div className="flex items-center gap-2.5 min-w-0">

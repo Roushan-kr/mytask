@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ITag, IThreadDoc } from '@/lib/types';
 import { updateThreadTagsAction } from '@/app/actions/threads';
 import { X, Plus, Trash2, Tag, Check, AlertTriangle } from 'lucide-react';
@@ -23,6 +23,8 @@ const PRESET_COLORS = [
   '#6366f1',
 ];
 
+import { useEscapeKey } from '@/lib/hooks/useEscapeKey';
+
 export function TagManagerModal({ isOpen, onClose, thread, onUpdated }: TagManagerModalProps) {
   const [tags, setTags] = useState<ITag[]>(thread?.tags || []);
   const [newTagName, setNewTagName] = useState('');
@@ -32,6 +34,8 @@ export function TagManagerModal({ isOpen, onClose, thread, onUpdated }: TagManag
 
   const [deletingTag, setDeletingTag] = useState<ITag | null>(null);
   const [migrateTargetTagId, setMigrateTargetTagId] = useState<string>('');
+
+  useEscapeKey(isOpen, onClose);
 
   if (!isOpen || !thread) return null;
 

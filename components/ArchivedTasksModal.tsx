@@ -24,6 +24,7 @@ import {
   RefreshCw,
   Bell,
 } from 'lucide-react';
+import { useEscapeKey } from '@/lib/hooks/useEscapeKey';
 
 interface ArchivedTasksModalProps {
   isOpen: boolean;
@@ -66,6 +67,8 @@ export function ArchivedTasksModal({
       fetchArchivedTasks();
     }
   }, [isOpen, fetchArchivedTasks]);
+
+  useEscapeKey(isOpen, onClose);
 
   if (!isOpen) return null;
 
