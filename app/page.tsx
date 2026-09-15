@@ -16,6 +16,7 @@ import { NotificationBell } from '@/components/NotificationBell';
 import { ArchivedTasksModal } from '@/components/ArchivedTasksModal';
 import { DataBackupModal } from '@/components/DataBackupModal';
 import { McpApiKeyModal } from '@/components/McpApiKeyModal';
+import { ThreadMembersModal } from '@/components/ThreadMembersModal';
 import { CommandPalette } from '@/components/CommandPalette';
 import {
   Plus,
@@ -57,6 +58,7 @@ function DashboardContent() {
   const [isArchivedModalOpen, setIsArchivedModalOpen] = useState(false);
   const [isDataBackupOpen, setIsDataBackupOpen] = useState(false);
   const [isMcpApiKeyOpen, setIsMcpApiKeyOpen] = useState(false);
+  const [isMembersModalOpen, setIsMembersModalOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
 
   // Load User Session & Initial Threads
@@ -362,6 +364,7 @@ function DashboardContent() {
               tasks={visibleTasks}
               onTasksChange={setTasks}
               onOpenTagManager={() => setIsTagManagerOpen(true)}
+              onOpenMembers={() => setIsMembersModalOpen(true)}
               onAddTask={handleOpenAddTask}
               onOpenHistory={handleOpenHistory}
               onEditTask={handleEditTask}
@@ -453,6 +456,16 @@ function DashboardContent() {
         />
       )}
 
+      {/* Thread Members / Collaborators Modal */}
+      {isMembersModalOpen && activeThread && (
+        <ThreadMembersModal
+          isOpen={isMembersModalOpen}
+          onClose={() => setIsMembersModalOpen(false)}
+          thread={activeThread}
+          currentUserEmail={userEmail}
+        />
+      )}
+
       {/* Command Palette (Cmd+K / Ctrl+K) */}
       <CommandPalette
         isOpen={isCommandPaletteOpen}
@@ -466,6 +479,7 @@ function DashboardContent() {
         onOpenTimeline={() => setIsTimelineOpen(true)}
         onOpenArchived={() => setIsArchivedModalOpen(true)}
         onOpenTagManager={() => setIsTagManagerOpen(true)}
+        onOpenMembers={() => setIsMembersModalOpen(true)}
         onOpenApiKeyModal={() => setIsMcpApiKeyOpen(true)}
         onEditTask={handleEditTask}
       />

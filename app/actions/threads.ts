@@ -281,3 +281,159 @@ export async function archiveThreadAction(payload: { threadId: string }) {
     return { success: false, error: error.message || 'Failed to archive thread' };
   }
 }
+
+export interface IThreadMemberInfo {
+  userId: string;
+  email: string;
+  name: string;
+  role: 'owner' | 'editor' | 'viewer';
+}
+
+/**
+ * Returns all members and collaborators for a thread.
+ */
+export async function getThreadMembersAction(threadId: string): Promise<{ success: boolean; data?: IThreadMemberInfo[]; error?: string }> {
+  try {
+    const session = await getCurrentSession();
+    if (!session) return { success: false, error: 'Unauthorized' };
+
+    const access = await verifyThreadAccess(session.userId, threadId, 'viewer');
+    if (!access) return { success: false, error: 'Unauthorized to view thread members' };
+
+    await connectDB();
+    const thread = access.thread;
+    const { User } = await import('@/models/User');
+
+    // Fetch owner details
+    const owner = await User.findById(thread.ownerId).select('email name').lean();
+    const membersList: IThreadMemberInfo[] = [];
+
+    if (owner) {
+      membersList.push({
+        userId: owner._id.toString(),
+        email: owner.email,
+        name: owner.name || owner.email.split('@')[0],
+        role: 'owner',
+      });
+    }
+
+    // Fetch member details
+    if (thread.members && Array.isArray(thread.members)) {
+      const memberUserIds = thread.members.map((m: any) => m.userId);
+      const memberUsers = await User.find({ _id: { $in: memberUserIds } }).select('email name').lean();
+      const userMap = new Map(memberUsers.map((u: any) => [u._id.toString(), u]));
+
+      for (const m of thread.members) {
+        const uId = m.userId?.toString();
+        if (uId === thread.ownerId?.toString()) continue;
+        const u = userMap.get(uId);
+        if (u) {
+          membersList.push({
+            userId: u._id.toString(),
+            email: u.email,
+            name: u.name || u.email.split('@')[0],
+            role: m.role || 'editor',
+          });
+        }
+      }
+    }
+
+    return { success: true, data: membersList };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Failed to fetch thread members' };
+  }
+}
+
+/**
+ * Invites / assigns a collaborator to a thread by email.
+ */
+export async function inviteThreadMemberAction(payload: {
+  threadId: string;
+  email: string;
+  role?: 'editor' | 'viewer';
+}): Promise<{ success: boolean; member?: IThreadMemberInfo; error?: string }> {
+  try {
+    const session = await getCurrentSession();
+    if (!session) return { success: false, error: 'Unauthorized' };
+
+    const access = await verifyThreadAccess(session.userId, payload.threadId, 'owner');
+    if (!access) return { success: false, error: 'Only thread owners can invite members' };
+
+    await connectDB();
+    const { User } = await import('@/models/User');
+    const cleanEmail = payload.email.toLowerCase().trim();
+
+    const targetUser = await User.findOne({ email: cleanEmail }).select('_id email name').lean();
+    if (!targetUser) {
+      return { success: false, error: `No user found with email "${cleanEmail}". They must create an account first.` };
+    }
+
+    const targetUserId = targetUser._id.toString();
+    if (targetUserId === session.userId) {
+      return { success: false, error: 'You are already the owner of this thread.' };
+    }
+
+    const role = payload.role || 'editor';
+
+    await Thread.findByIdAndUpdate(payload.threadId, {
+      $addToSet: {
+        memberUserIds: targetUser._id,
+      },
+    });
+
+    // Update or push into members array
+    await Thread.updateOne(
+      { _id: payload.threadId, 'members.userId': targetUser._id },
+      { $set: { 'members.$.role': role } }
+    );
+    await Thread.updateOne(
+      { _id: payload.threadId, 'members.userId': { $ne: targetUser._id } },
+      { $push: { members: { userId: targetUser._id, role, addedAt: new Date() } } }
+    );
+
+    revalidatePath(`/?thread=${payload.threadId}`);
+    return {
+      success: true,
+      member: {
+        userId: targetUserId,
+        email: targetUser.email,
+        name: targetUser.name || targetUser.email.split('@')[0],
+        role,
+      },
+    };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Failed to invite member' };
+  }
+}
+
+/**
+ * Removes a member from a thread.
+ */
+export async function removeThreadMemberAction(payload: {
+  threadId: string;
+  targetUserId: string;
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const session = await getCurrentSession();
+    if (!session) return { success: false, error: 'Unauthorized' };
+
+    const access = await verifyThreadAccess(session.userId, payload.threadId, 'owner');
+    if (!access) return { success: false, error: 'Only thread owners can remove members' };
+
+    await connectDB();
+    const targetObjId = new Types.ObjectId(payload.targetUserId);
+
+    await Thread.findByIdAndUpdate(payload.threadId, {
+      $pull: {
+        memberUserIds: targetObjId,
+        members: { userId: targetObjId },
+      },
+    });
+
+    revalidatePath(`/?thread=${payload.threadId}`);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Failed to remove member' };
+  }
+}
+

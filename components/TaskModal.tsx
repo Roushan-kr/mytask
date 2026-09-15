@@ -3,9 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import { ITaskDoc, ITag } from '@/lib/types';
 import { createTaskAction, updateTaskAction } from '@/app/actions/tasks';
-import { X, Check, Calendar, AlertCircle, Bell, CheckSquare, Plus } from 'lucide-react';
+import { getThreadMembersAction, IThreadMemberInfo } from '@/app/actions/threads';
+import { X, Check, Calendar, AlertCircle, Bell, CheckSquare, Plus, User } from 'lucide-react';
 import { parseSubtasks, toggleSubtaskInMarkdown, appendSubtaskToMarkdown } from '@/lib/subtasks';
-
 import { useEscapeKey } from '@/lib/hooks/useEscapeKey';
 
 interface TaskModalProps {
@@ -35,18 +35,41 @@ export function TaskModal({
   const [priority, setPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>(
     taskToEdit?.priority || 'medium'
   );
+  const [assigneeId, setAssigneeId] = useState<string>(
+    taskToEdit?.assigneeId || ''
+  );
   const [dueDate, setDueDate] = useState(
     taskToEdit?.dueDate ? new Date(taskToEdit.dueDate).toISOString().split('T')[0] : ''
   );
   const [remindFrequency, setRemindFrequency] = useState<string>(
     taskToEdit?.remind_frequency ? String(taskToEdit.remind_frequency) : ''
   );
+  const [members, setMembers] = useState<IThreadMemberInfo[]>([]);
+  const [newSubtaskInput, setNewSubtaskInput] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEscapeKey(isOpen, onClose);
 
+  // Fetch thread members for assignment dropdown
+  useEffect(() => {
+    if (isOpen && threadId) {
+      getThreadMembersAction(threadId).then((res) => {
+        if (res.success && res.data) {
+          setMembers(res.data);
+        }
+      });
+    }
+  }, [isOpen, threadId]);
+
   if (!isOpen) return null;
+
+  const handleAddSubtask = () => {
+    if (!newSubtaskInput.trim()) return;
+    const updated = appendSubtaskToMarkdown(description, newSubtaskInput.trim());
+    setDescription(updated);
+    setNewSubtaskInput('');
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,6 +89,7 @@ export function TaskModal({
         title: title.trim(),
         description: description.trim(),
         priority,
+        assigneeId: assigneeId || null,
         dueDate: dueDate || null,
         remind_frequency: freqNum && freqNum > 0 ? freqNum : null,
       });
@@ -84,6 +108,7 @@ export function TaskModal({
         description: description.trim(),
         tagId,
         priority,
+        assigneeId: assigneeId || undefined,
         dueDate: dueDate || null,
         remind_frequency: freqNum && freqNum > 0 ? freqNum : null,
       });
@@ -99,82 +124,95 @@ export function TaskModal({
   };
 
   return (
-    <div
-      onClick={onClose}
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in"
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="glass-panel w-full max-w-lg rounded-2xl p-4 sm:p-6 shadow-2xl border border-white/10 relative max-h-[92vh] flex flex-col overflow-hidden"
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between pb-3.5 border-b border-slate-800 shrink-0">
-          <h2 className="text-base sm:text-lg font-bold text-white leading-none">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in select-none">
+      <div className="glass-panel w-full max-w-lg rounded-2xl p-6 shadow-2xl border border-white/10 relative overflow-hidden bg-slate-900/90 flex flex-col max-h-[90vh]">
+        {/* Top Glow bar */}
+        <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-indigo-500 to-purple-500" />
+
+        {/* Modal Header */}
+        <div className="flex items-center justify-between pb-4 border-b border-slate-800 shrink-0">
+          <h2 className="text-base font-bold text-white">
             {taskToEdit ? 'Edit Task' : 'Create New Task'}
           </h2>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0"
+            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {error && (
-          <div className="mt-3 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs flex items-center gap-2 shrink-0">
-            <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
+        {/* Modal Body / Form */}
+        <form onSubmit={handleSubmit} className="overflow-y-auto py-4 space-y-4 pr-1">
+          {error && (
+            <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
+              <span>{error}</span>
+            </div>
+          )}
 
-        {/* Form Body */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto py-3 space-y-3.5 pr-1 min-h-0">
           <div>
             <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
-              Task Title <span className="text-red-400">*</span>
+              Task Title *
             </label>
             <input
               type="text"
               required
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. Design wireframes for mobile view"
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 sm:py-2.5 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="What needs to be done?"
+              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
 
           <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Description / Notes & Checklists
-              </label>
-              <button
-                type="button"
-                onClick={() => setDescription((prev) => appendSubtaskToMarkdown(prev, 'New checklist item'))}
-                className="text-[11px] font-medium text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition"
-              >
-                <Plus className="w-3 h-3" />
-                <span>Add Subtask</span>
-              </button>
-            </div>
+            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
+              Description & Notes
+            </label>
             <textarea
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Add key requirements or markdown checklist (- [ ] task)..."
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none font-sans"
+              placeholder="Add details, bullet points, or markdown checklists..."
+              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-y"
             />
 
-            {/* Interactive Subtasks Preview in Modal */}
+            {/* Quick Add Subtask Shortcut */}
+            <div className="mt-2 flex items-center gap-2">
+              <input
+                type="text"
+                value={newSubtaskInput}
+                onChange={(e) => setNewSubtaskInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddSubtask();
+                  }
+                }}
+                placeholder="Add checklist subtask (Press Enter)..."
+                className="flex-1 bg-slate-950/60 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-slate-300 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+              <button
+                type="button"
+                onClick={handleAddSubtask}
+                className="px-2.5 py-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 text-xs font-medium flex items-center gap-1 shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add</span>
+              </button>
+            </div>
+
+            {/* Interactive Checklist Preview */}
             {(() => {
               const subtasks = parseSubtasks(description);
               if (subtasks.length === 0) return null;
+
               return (
-                <div className="mt-2 p-2.5 rounded-xl bg-slate-950/70 border border-slate-800 space-y-1.5">
-                  <div className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5 mb-1">
-                    <CheckSquare className="w-3.5 h-3.5 text-indigo-400" />
-                    <span>Interactive Checklist ({subtasks.filter((s) => s.completed).length}/{subtasks.length} completed):</span>
-                  </div>
+                <div className="mt-2.5 p-2.5 rounded-xl bg-slate-950/70 border border-slate-800 space-y-1.5">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider flex items-center gap-1">
+                    <CheckSquare className="w-3 h-3 text-indigo-400" />
+                    Subtasks ({subtasks.filter((s) => s.completed).length}/{subtasks.length})
+                  </span>
                   <div className="space-y-1 max-h-32 overflow-y-auto">
                     {subtasks.map((st) => (
                       <label
@@ -218,7 +256,7 @@ export function TaskModal({
               </div>
             )}
 
-            <div className={taskToEdit ? 'sm:col-span-2' : ''}>
+            <div className={taskToEdit ? '' : ''}>
               <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
                 Priority
               </label>
@@ -231,6 +269,26 @@ export function TaskModal({
                 <option value="medium">🔵 Medium</option>
                 <option value="high">🟠 High</option>
                 <option value="urgent">🔴 Urgent</option>
+              </select>
+            </div>
+
+            {/* Assignee Selector */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+                <User className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                <span>Assignee</span>
+              </label>
+              <select
+                value={assigneeId}
+                onChange={(e) => setAssigneeId(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs sm:text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 capitalize"
+              >
+                <option value="">Unassigned</option>
+                {members.map((m) => (
+                  <option key={m.userId} value={m.userId}>
+                    👤 {m.name} ({m.role})
+                  </option>
+                ))}
               </select>
             </div>
           </div>
@@ -263,50 +321,25 @@ export function TaskModal({
                 step="1"
                 value={remindFrequency}
                 onChange={(e) => setRemindFrequency(e.target.value)}
-                placeholder="e.g. 24, 72, 39"
-                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="e.g. 24 for daily"
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
-              <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                {[12, 24, 48, 72].map((h) => (
-                  <button
-                    key={h}
-                    type="button"
-                    onClick={() => setRemindFrequency(String(h))}
-                    className={`text-[10px] px-2 py-0.5 rounded-md border transition-colors ${
-                      remindFrequency === String(h)
-                        ? 'bg-indigo-600 text-white border-indigo-500 font-semibold'
-                        : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'
-                    }`}
-                  >
-                    {h}h
-                  </button>
-                ))}
-                {remindFrequency && (
-                  <button
-                    type="button"
-                    onClick={() => setRemindFrequency('')}
-                    className="text-[10px] px-1.5 py-0.5 text-slate-500 hover:text-rose-400"
-                  >
-                    Clear
-                  </button>
-                )}
-              </div>
             </div>
           </div>
 
-          {/* Footer Actions */}
-          <div className="pt-3 border-t border-slate-800 flex items-center justify-end gap-2 shrink-0">
+          {/* Modal Footer */}
+          <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-800 shrink-0">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs sm:text-sm text-slate-300 font-medium transition-colors"
+              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium text-xs sm:text-sm transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSaving}
-              className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-medium flex items-center gap-1.5 transition-colors shadow-lg shadow-indigo-600/20 disabled:opacity-50"
+              className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs sm:text-sm flex items-center gap-1.5 transition-colors disabled:opacity-50"
             >
               <Check className="w-4 h-4" />
               <span>{isSaving ? 'Saving...' : taskToEdit ? 'Save Changes' : 'Create Task'}</span>

@@ -19,13 +19,14 @@ import { KanbanColumn } from './KanbanColumn';
 import { TaskCard } from './TaskCard';
 import { moveTaskAction } from '@/app/actions/tasks';
 import { calculateMidpointOrder } from '@/lib/fractional-order';
-import { Plus, SlidersHorizontal } from 'lucide-react';
+import { Plus, SlidersHorizontal, Users } from 'lucide-react';
 
 interface KanbanBoardProps {
   thread: IThreadDoc;
   tasks: ITaskDoc[];
   onTasksChange: (tasks: ITaskDoc[]) => void;
   onOpenTagManager: () => void;
+  onOpenMembers?: () => void;
   onAddTask: (tagId?: string) => void;
   onOpenHistory: (task: ITaskDoc) => void;
   onEditTask: (task: ITaskDoc) => void;
@@ -37,6 +38,7 @@ export function KanbanBoard({
   tasks,
   onTasksChange,
   onOpenTagManager,
+  onOpenMembers,
   onAddTask,
   onOpenHistory,
   onEditTask,
@@ -253,6 +255,17 @@ export function KanbanBoard({
         </div>
 
         <div className="flex items-center gap-1.5 sm:gap-2">
+          {onOpenMembers && (
+            <button
+              onClick={onOpenMembers}
+              className="flex items-center gap-1 sm:gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-xs font-medium text-slate-300 hover:text-white hover:border-slate-600 transition-colors shadow-sm"
+              title="Manage Thread Collaborators & Assignees"
+            >
+              <Users className="w-3.5 h-3.5 text-purple-400" />
+              <span>Members</span>
+            </button>
+          )}
+
           <button
             onClick={onOpenTagManager}
             className="flex items-center gap-1 sm:gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-xs font-medium text-slate-300 hover:text-white hover:border-slate-600 transition-colors shadow-sm"

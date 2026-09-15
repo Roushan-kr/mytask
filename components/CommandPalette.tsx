@@ -17,6 +17,7 @@ import {
   ArrowRight,
   X,
   Key,
+  Users,
 } from 'lucide-react';
 
 interface CommandPaletteProps {
@@ -31,6 +32,7 @@ interface CommandPaletteProps {
   onOpenTimeline: () => void;
   onOpenArchived: () => void;
   onOpenTagManager: () => void;
+  onOpenMembers?: () => void;
   onOpenApiKeyModal?: () => void;
   onEditTask: (task: ITaskDoc) => void;
 }
@@ -57,6 +59,7 @@ export function CommandPalette({
   onOpenTimeline,
   onOpenArchived,
   onOpenTagManager,
+  onOpenMembers,
   onOpenApiKeyModal,
   onEditTask,
 }: CommandPaletteProps) {
@@ -147,6 +150,20 @@ export function CommandPalette({
     });
 
     if (activeThread) {
+      if (onOpenMembers) {
+        items.push({
+          id: 'action-members',
+          category: 'Actions',
+          title: 'Manage Thread Collaborators & Assignees',
+          subtitle: `Invite or manage permissions for ${activeThread.name}`,
+          icon: <Users className="w-4 h-4 text-purple-400" />,
+          action: () => {
+            onClose();
+            onOpenMembers();
+          },
+        });
+      }
+
       items.push({
         id: 'action-tags',
         category: 'Actions',
@@ -208,6 +225,8 @@ export function CommandPalette({
     onOpenTimeline,
     onOpenArchived,
     onOpenTagManager,
+    onOpenMembers,
+    onOpenApiKeyModal,
     onSelectThread,
     onEditTask,
   ]);

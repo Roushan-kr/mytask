@@ -14,6 +14,7 @@ import {
   ChevronDown,
   Bell,
   CheckSquare,
+  User,
 } from 'lucide-react';
 
 interface TaskCardProps {
@@ -100,6 +101,17 @@ function TaskCardComponent({
           </button>
 
           {getPriorityBadge(task.priority)}
+
+          {/* Assignee Badge */}
+          {task.assigneeId && (
+            <span
+              className="flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-mono bg-purple-500/20 text-purple-300 border border-purple-500/30 shrink-0"
+              title="Assigned to collaborator"
+            >
+              <User className="w-2.5 h-2.5 text-purple-400" />
+              <span>Assigned</span>
+            </span>
+          )}
 
           {/* Reminder Bell Indicator */}
           {task.remind_frequency && task.remind_frequency > 0 && (
