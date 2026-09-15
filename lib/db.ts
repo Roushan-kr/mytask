@@ -19,13 +19,17 @@ if (!cached) {
 }
 
 export async function connectDB(): Promise<typeof mongoose> {
-  if (cached!.conn) {
+  if (cached!.conn && mongoose.connection.readyState === 1) {
     return cached!.conn;
   }
 
   if (!cached!.promise) {
-    const opts = {
+    const opts: mongoose.ConnectOptions = {
       bufferCommands: false,
+      maxPoolSize: 10,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+      family: 4, // Use IPv4, skip IPv6 resolution delays on serverless
     };
 
     cached!.promise = mongoose.connect(MONGODB_URI, opts).then((m) => {

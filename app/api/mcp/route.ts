@@ -4,6 +4,42 @@ import { createMcpServer } from '@/lib/mcp/tools';
 
 export const dynamic = 'force-dynamic';
 
+// Module-level singleton MCP server instance (created once per container/worker lifecycle)
+const mcpServer = createMcpServer();
+
+// Pre-compute tool list metadata once at startup to eliminate schema parsing overhead on every request
+function computeToolList() {
+  const registeredTools = (mcpServer as any)._registeredTools || {};
+  return Object.entries(registeredTools).map(([name, tool]: [string, any]) => ({
+    name,
+    description: tool.description || '',
+    inputSchema: tool.inputSchema
+      ? {
+          type: 'object',
+          properties: tool.inputSchema.shape
+            ? Object.fromEntries(
+                Object.entries(tool.inputSchema.shape).map(([k, v]: [string, any]) => [
+                  k,
+                  {
+                    type:
+                      v._def?.typeName === 'ZodNumber'
+                        ? 'number'
+                        : v._def?.typeName === 'ZodEnum'
+                        ? 'string'
+                        : 'string',
+                    description: v.description || '',
+                    ...(v._def?.typeName === 'ZodEnum' ? { enum: v._def.values } : {}),
+                  },
+                ])
+              )
+            : {},
+        }
+      : { type: 'object', properties: {} },
+  }));
+}
+
+const CACHED_TOOL_LIST = computeToolList();
+
 /**
  * Constant-time API Key verification with length check.
  */
@@ -55,6 +91,7 @@ export async function GET(req: NextRequest) {
  * Handles MCP JSON-RPC protocol requests (initialize, tools/list, tools/call, ping).
  */
 export async function POST(req: NextRequest) {
+  const startTime = performance.now();
   const authHeader = req.headers.get('authorization');
   if (!verifyApiKey(authHeader)) {
     return NextResponse.json(
@@ -93,12 +130,12 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const mcpServer = createMcpServer();
-
   try {
+    let response: NextResponse;
+
     // 1. Initialize
     if (method === 'initialize') {
-      return NextResponse.json({
+      response = NextResponse.json({
         jsonrpc: '2.0',
         id,
         result: {
@@ -117,56 +154,32 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Notifications (e.g. notifications/initialized)
-    if (method === 'notifications/initialized' || method === 'initialized') {
-      return new NextResponse(null, { status: 204 });
+    else if (method === 'notifications/initialized' || method === 'initialized') {
+      response = new NextResponse(null, { status: 204 });
     }
 
     // 3. Ping
-    if (method === 'ping') {
-      return NextResponse.json({
+    else if (method === 'ping') {
+      response = NextResponse.json({
         jsonrpc: '2.0',
         id,
         result: {},
       });
     }
 
-    // 4. Tools List
-    if (method === 'tools/list') {
-      // Access registered tools from MCP server instance
-      const registeredTools = (mcpServer as any)._registeredTools || {};
-      const toolList = Object.entries(registeredTools).map(([name, tool]: [string, any]) => ({
-        name,
-        description: tool.description || '',
-        inputSchema: tool.inputSchema
-          ? {
-              type: 'object',
-              properties: tool.inputSchema.shape
-                ? Object.fromEntries(
-                    Object.entries(tool.inputSchema.shape).map(([k, v]: [string, any]) => [
-                      k,
-                      {
-                        type: v._def?.typeName === 'ZodNumber' ? 'number' : v._def?.typeName === 'ZodEnum' ? 'string' : 'string',
-                        description: v.description || '',
-                        ...(v._def?.typeName === 'ZodEnum' ? { enum: v._def.values } : {}),
-                      },
-                    ])
-                  )
-                : {},
-            }
-          : { type: 'object', properties: {} },
-      }));
-
-      return NextResponse.json({
+    // 4. Tools List (served from pre-computed cache)
+    else if (method === 'tools/list') {
+      response = NextResponse.json({
         jsonrpc: '2.0',
         id,
         result: {
-          tools: toolList,
+          tools: CACHED_TOOL_LIST,
         },
       });
     }
 
     // 5. Tools Call
-    if (method === 'tools/call') {
+    else if (method === 'tools/call') {
       const toolName = params?.name;
       const toolArgs = params?.arguments || {};
 
@@ -174,7 +187,7 @@ export async function POST(req: NextRequest) {
       const tool = registeredTools[toolName];
 
       if (!tool) {
-        return NextResponse.json({
+        response = NextResponse.json({
           jsonrpc: '2.0',
           id,
           error: {
@@ -182,28 +195,39 @@ export async function POST(req: NextRequest) {
             message: `Tool '${toolName}' not found.`,
           },
         });
+      } else {
+        // Execute tool handler via MCP Server
+        const result = await tool.handler(toolArgs, { signal: req.signal });
+
+        response = NextResponse.json({
+          jsonrpc: '2.0',
+          id,
+          result,
+        });
       }
-
-      // Execute tool handler via MCP Server
-      const result = await tool.handler(toolArgs, { signal: req.signal });
-
-      return NextResponse.json({
-        jsonrpc: '2.0',
-        id,
-        result,
-      });
     }
 
     // Unknown method
-    return NextResponse.json({
-      jsonrpc: '2.0',
-      id,
-      error: {
-        code: -32601,
-        message: `Method '${method}' not found.`,
-      },
-    });
+    else {
+      response = NextResponse.json({
+        jsonrpc: '2.0',
+        id,
+        error: {
+          code: -32601,
+          message: `Method '${method}' not found.`,
+        },
+      });
+    }
+
+    const elapsed = (performance.now() - startTime).toFixed(1);
+    const logTag = method === 'tools/call' ? `tools/call:${params?.name}` : method;
+    console.log(`[MCP Server] ${logTag} took ${elapsed}ms`);
+    response.headers.set('Server-Timing', `total;dur=${elapsed}`);
+
+    return response;
   } catch (error: any) {
+    const elapsed = (performance.now() - startTime).toFixed(1);
+    console.error(`[MCP Server Error] ${method} failed after ${elapsed}ms:`, error);
     return NextResponse.json({
       jsonrpc: '2.0',
       id,
