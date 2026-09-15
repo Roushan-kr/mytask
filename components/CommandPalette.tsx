@@ -16,6 +16,7 @@ import {
   Command,
   ArrowRight,
   X,
+  Key,
 } from 'lucide-react';
 
 interface CommandPaletteProps {
@@ -30,6 +31,7 @@ interface CommandPaletteProps {
   onOpenTimeline: () => void;
   onOpenArchived: () => void;
   onOpenTagManager: () => void;
+  onOpenApiKeyModal?: () => void;
   onEditTask: (task: ITaskDoc) => void;
 }
 
@@ -55,6 +57,7 @@ export function CommandPalette({
   onOpenTimeline,
   onOpenArchived,
   onOpenTagManager,
+  onOpenApiKeyModal,
   onEditTask,
 }: CommandPaletteProps) {
   const [query, setQuery] = useState('');
@@ -88,6 +91,21 @@ export function CommandPalette({
         onOpenAddTask();
       },
     });
+
+    if (onOpenApiKeyModal) {
+      items.push({
+        id: 'action-api-key',
+        category: 'Actions',
+        title: 'Manage Personal AI API Key (MCP)',
+        subtitle: 'Connect Claude Desktop, Cursor, or AI agents',
+        icon: <Key className="w-4 h-4 text-emerald-400" />,
+        badge: 'K',
+        action: () => {
+          onClose();
+          onOpenApiKeyModal();
+        },
+      });
+    }
 
     items.push({
       id: 'action-backup-hub',

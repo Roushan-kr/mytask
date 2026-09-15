@@ -17,6 +17,7 @@ import {
   Check,
   Archive,
   Database,
+  Key,
 } from 'lucide-react';
 import { InstallPwaButton } from './InstallPwaButton';
 
@@ -29,6 +30,7 @@ interface ThreadSidebarProps {
   onOpenTimeline: () => void;
   onOpenArchived: () => void;
   onOpenDataBackup: () => void;
+  onOpenApiKeyModal?: () => void;
   isMobileOpen?: boolean;
   onMobileClose?: () => void;
   userEmail?: string;
@@ -52,6 +54,7 @@ export function ThreadSidebar({
   onOpenTimeline,
   onOpenArchived,
   onOpenDataBackup,
+  onOpenApiKeyModal,
   isMobileOpen = false,
   onMobileClose,
   userEmail,
@@ -203,6 +206,19 @@ export function ThreadSidebar({
             <Database className="w-4 h-4 text-indigo-400" />
             <span>Data & Backup (JSON/CSV)</span>
           </button>
+
+          {onOpenApiKeyModal && (
+            <button
+              onClick={() => {
+                onOpenApiKeyModal();
+                if (onMobileClose) onMobileClose();
+              }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-900 transition-colors"
+            >
+              <Key className="w-4 h-4 text-emerald-400" />
+              <span>Personal AI Key (MCP)</span>
+            </button>
+          )}
         </div>
 
         {/* Threads Section List */}
@@ -285,15 +301,28 @@ export function ThreadSidebar({
               <p className="text-[10px] text-slate-400 truncate font-mono">{userEmail || 'admin@taskflow.local'}</p>
             </div>
 
-            <form action={logoutAction}>
-              <button
-                type="submit"
-                className="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-slate-900 border border-slate-800 transition-colors"
-                title="Sign Out"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
-            </form>
+            <div className="flex items-center gap-1">
+              {onOpenApiKeyModal && (
+                <button
+                  type="button"
+                  onClick={onOpenApiKeyModal}
+                  className="p-2 rounded-xl text-slate-400 hover:text-emerald-400 hover:bg-slate-900 border border-slate-800 transition-colors"
+                  title="Manage AI API Key (MCP)"
+                >
+                  <Key className="w-4 h-4" />
+                </button>
+              )}
+
+              <form action={logoutAction}>
+                <button
+                  type="submit"
+                  className="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-slate-900 border border-slate-800 transition-colors"
+                  title="Sign Out"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </form>
+            </div>
           </div>
         </div>
 

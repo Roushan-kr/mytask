@@ -15,6 +15,7 @@ import { TimelineDrawer } from '@/components/TimelineDrawer';
 import { NotificationBell } from '@/components/NotificationBell';
 import { ArchivedTasksModal } from '@/components/ArchivedTasksModal';
 import { DataBackupModal } from '@/components/DataBackupModal';
+import { McpApiKeyModal } from '@/components/McpApiKeyModal';
 import { CommandPalette } from '@/components/CommandPalette';
 import {
   Plus,
@@ -55,6 +56,7 @@ function DashboardContent() {
   const [isTimelineOpen, setIsTimelineOpen] = useState(false);
   const [isArchivedModalOpen, setIsArchivedModalOpen] = useState(false);
   const [isDataBackupOpen, setIsDataBackupOpen] = useState(false);
+  const [isMcpApiKeyOpen, setIsMcpApiKeyOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
 
   // Load User Session & Initial Threads
@@ -256,6 +258,7 @@ function DashboardContent() {
         onOpenTimeline={() => setIsTimelineOpen(true)}
         onOpenArchived={() => setIsArchivedModalOpen(true)}
         onOpenDataBackup={() => setIsDataBackupOpen(true)}
+        onOpenApiKeyModal={() => setIsMcpApiKeyOpen(true)}
         isMobileOpen={isMobileSidebarOpen}
         onMobileClose={() => setIsMobileSidebarOpen(false)}
         userEmail={userEmail}
@@ -442,6 +445,14 @@ function DashboardContent() {
         />
       )}
 
+      {/* Personal MCP AI API Key Modal */}
+      {isMcpApiKeyOpen && (
+        <McpApiKeyModal
+          isOpen={isMcpApiKeyOpen}
+          onClose={() => setIsMcpApiKeyOpen(false)}
+        />
+      )}
+
       {/* Command Palette (Cmd+K / Ctrl+K) */}
       <CommandPalette
         isOpen={isCommandPaletteOpen}
@@ -455,6 +466,7 @@ function DashboardContent() {
         onOpenTimeline={() => setIsTimelineOpen(true)}
         onOpenArchived={() => setIsArchivedModalOpen(true)}
         onOpenTagManager={() => setIsTagManagerOpen(true)}
+        onOpenApiKeyModal={() => setIsMcpApiKeyOpen(true)}
         onEditTask={handleEditTask}
       />
     </main>
