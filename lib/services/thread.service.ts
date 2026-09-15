@@ -1,6 +1,7 @@
 import { connectDB } from '@/lib/db';
 import { Thread } from '@/models/Thread';
 import { IThreadDoc, ITag } from '@/lib/types';
+import { verifyThreadAccess } from '@/lib/auth/permissions';
 import { Types } from 'mongoose';
 
 export interface ICleanThread {
@@ -8,6 +9,7 @@ export interface ICleanThread {
   name: string;
   description?: string;
   color: string;
+  role: 'owner' | 'editor' | 'viewer';
   statuses: Array<{
     id: string;
     name: string;
@@ -15,35 +17,74 @@ export interface ICleanThread {
   }>;
 }
 
+const DEFAULT_TAGS: ITag[] = [
+  { id: 'todo', name: 'todo', color: '#3b82f6', order: 0 },
+  { id: 'done', name: 'done', color: '#10b981', order: 1 },
+  { id: 'schedule-later', name: 'schedule latter', color: '#8b5cf6', order: 2 },
+];
+
 /**
  * Service to manage Thread queries and status column resolution.
  */
 export const threadService = {
-  async listThreads(): Promise<ICleanThread[]> {
-    await connectDB();
-    const threads = await Thread.find({ isArchived: false }).sort({ order: 1, createdAt: 1 }).lean();
+  /**
+   * List all threads accessible to the user.
+   * Auto-provisions a default workspace thread if the user has none.
+   */
+  async listThreads(userId: string): Promise<ICleanThread[]> {
+    if (!userId || !Types.ObjectId.isValid(userId)) {
+      return [];
+    }
 
-    return threads.map((t: any) => ({
-      id: t._id.toString(),
-      name: t.name,
-      description: t.description || undefined,
-      color: t.color || '#6366f1',
-      statuses: (t.tags || []).map((tag: ITag) => ({
-        id: tag.id,
-        name: tag.name,
-        color: tag.color,
-      })),
-    }));
+    await connectDB();
+    const userObjId = new Types.ObjectId(userId);
+
+    let threads = await Thread.find({
+      isArchived: false,
+      $or: [{ ownerId: userObjId }, { memberUserIds: userObjId }],
+    })
+      .sort({ order: 1, createdAt: 1 })
+      .lean();
+
+    // Auto-provision default Main Thread for new users
+    if (threads.length === 0) {
+      const defaultThread = await Thread.create({
+        ownerId: userObjId,
+        name: 'Main Workspace',
+        description: 'Primary project Kanban board',
+        color: '#6366f1',
+        tags: DEFAULT_TAGS,
+        order: 1000,
+        memberUserIds: [],
+        members: [{ userId: userObjId, role: 'owner', addedAt: new Date() }],
+      });
+      threads = [defaultThread.toObject()];
+    }
+
+    return threads.map((t: any) => {
+      const isOwner = t.ownerId?.toString() === userId;
+      const member = t.members?.find((m: any) => m.userId?.toString() === userId);
+      const role = isOwner ? 'owner' : (member?.role as any) || 'editor';
+
+      return {
+        id: t._id.toString(),
+        name: t.name,
+        description: t.description || undefined,
+        color: t.color || '#6366f1',
+        role,
+        statuses: (t.tags || []).map((tag: ITag) => ({
+          id: tag.id,
+          name: tag.name,
+          color: tag.color,
+        })),
+      };
+    });
   },
 
-  async getThreadById(threadId: string): Promise<IThreadDoc | null> {
-    if (!threadId || !Types.ObjectId.isValid(threadId)) {
-      return null;
-    }
-    await connectDB();
-    const thread = await Thread.findById(threadId).lean();
-    if (!thread) return null;
-    return JSON.parse(JSON.stringify(thread)) as IThreadDoc;
+  async getThreadById(userId: string, threadId: string): Promise<IThreadDoc | null> {
+    const access = await verifyThreadAccess(userId, threadId, 'viewer');
+    if (!access) return null;
+    return JSON.parse(JSON.stringify(access.thread)) as IThreadDoc;
   },
 
   /**
@@ -72,7 +113,9 @@ export const threadService = {
 
     // 3. Partial or slug match
     const slugInput = cleanInput.replace(/[^a-z0-9]+/g, '-');
-    const slugMatch = thread.tags.find((t) => t.id.includes(slugInput) || t.name.toLowerCase().includes(cleanInput));
+    const slugMatch = thread.tags.find(
+      (t) => t.id.includes(slugInput) || t.name.toLowerCase().includes(cleanInput)
+    );
     if (slugMatch) return slugMatch.id;
 
     // Fallback to first available tag

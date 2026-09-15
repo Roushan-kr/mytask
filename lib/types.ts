@@ -1,8 +1,16 @@
+export type ThreadRole = 'owner' | 'editor' | 'viewer';
+
 export interface ITag {
   id: string;
   name: string;
   color: string;
   order: number;
+}
+
+export interface IThreadMember {
+  userId: string;
+  role: ThreadRole;
+  addedAt: string | Date;
 }
 
 export interface ITaskHistoryItem {
@@ -11,14 +19,27 @@ export interface ITaskHistoryItem {
   toTag: string;
   timestamp: string | Date;
   details?: string;
+  userId?: string;
+}
+
+export interface IUserDoc {
+  _id: string;
+  email: string;
+  name?: string;
+  mcpApiKeyPreview?: string;
+  createdAt: string | Date;
+  updatedAt: string | Date;
 }
 
 export interface IThreadDoc {
   _id: string;
+  ownerId: string;
   name: string;
   description: string;
   color: string;
   tags: ITag[];
+  memberUserIds?: string[];
+  members?: IThreadMember[];
   order: number;
   isArchived: boolean;
   archivedAt?: string | Date;
@@ -29,6 +50,8 @@ export interface IThreadDoc {
 export interface ITaskDoc {
   _id: string;
   threadId: string;
+  creatorId: string;
+  assigneeId?: string | null;
   title: string;
   description: string;
   tagId: string;
@@ -46,6 +69,7 @@ export interface ITaskDoc {
 
 export interface IPushSubscriptionDoc {
   _id: string;
+  userId: string;
   endpoint: string;
   keys: {
     p256dh: string;

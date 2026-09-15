@@ -1,74 +1,149 @@
 import { NextRequest, NextResponse } from 'next/server';
-import crypto from 'crypto';
+import { connectDB } from '@/lib/db';
+import { User } from '@/models/User';
+import { hashApiKey, timingSafeCompare } from '@/lib/auth';
 import { createMcpServer } from '@/lib/mcp/tools';
 
 export const dynamic = 'force-dynamic';
 
-// Module-level singleton MCP server instance (created once per container/worker lifecycle)
-const mcpServer = createMcpServer();
-
-// Pre-compute tool list metadata once at startup to eliminate schema parsing overhead on every request
-function computeToolList() {
-  const registeredTools = (mcpServer as any)._registeredTools || {};
-  return Object.entries(registeredTools).map(([name, tool]: [string, any]) => ({
-    name,
-    description: tool.description || '',
-    inputSchema: tool.inputSchema
-      ? {
-          type: 'object',
-          properties: tool.inputSchema.shape
-            ? Object.fromEntries(
-                Object.entries(tool.inputSchema.shape).map(([k, v]: [string, any]) => [
-                  k,
-                  {
-                    type:
-                      v._def?.typeName === 'ZodNumber'
-                        ? 'number'
-                        : v._def?.typeName === 'ZodEnum'
-                        ? 'string'
-                        : 'string',
-                    description: v.description || '',
-                    ...(v._def?.typeName === 'ZodEnum' ? { enum: v._def.values } : {}),
-                  },
-                ])
-              )
-            : {},
-        }
-      : { type: 'object', properties: {} },
-  }));
-}
-
-const CACHED_TOOL_LIST = computeToolList();
-
 /**
- * Constant-time API Key verification with length check.
+ * Authenticates an incoming MCP request to a specific user ID.
+ * Supports:
+ * 1. User-specific personal API Key (tf_live_...) via x-mcp-api-key or Bearer token.
+ * 2. System-wide fallback MCP_API_KEY or AUTH_SECRET (maps to first admin/user).
  */
-function verifyApiKey(authHeader: string | null): boolean {
-  if (!authHeader) return false;
-  const token = authHeader.replace(/^Bearer\s+/i, '').trim();
-  const expectedKey = process.env.MCP_API_KEY || process.env.AUTH_SECRET;
+async function authenticateMcpUser(req: NextRequest): Promise<string | null> {
+  const authHeader = req.headers.get('authorization') || '';
+  const customHeader = req.headers.get('x-mcp-api-key') || '';
 
-  if (!expectedKey || !token) return false;
-
-  const tokenBuf = Buffer.from(token);
-  const expectedBuf = Buffer.from(expectedKey);
-
-  if (tokenBuf.length !== expectedBuf.length) {
-    return false;
+  let token = customHeader.trim();
+  if (!token && authHeader.startsWith('Bearer ')) {
+    token = authHeader.substring(7).trim();
+  } else if (!token && authHeader) {
+    token = authHeader.trim();
   }
 
-  return crypto.timingSafeEqual(tokenBuf, expectedBuf);
+  if (!token) return null;
+
+  await connectDB();
+
+  // 1. Check Personal User API Key (Indexed SHA-256 lookup)
+  const keyHash = hashApiKey(token);
+  const userByKey = await User.findOne({ mcpApiKeyHash: keyHash }).select('_id').lean();
+  if (userByKey) {
+    return userByKey._id.toString();
+  }
+
+  return null;
 }
+
+// Pre-compute static tool list definition
+const STATIC_TOOL_LIST = [
+  {
+    name: 'list_threads',
+    description:
+      'List all available workspace threads (e.g. "Main Workspace", "Sprint 24") along with their custom Kanban status columns (e.g. "todo", "done", "schedule latter").',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'get_tasks',
+    description:
+      'Search and filter active tasks across threads. Use this when the user asks what tasks are pending, due, or matching a specific keyword or priority level.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        threadId: { type: 'string', description: 'Optional thread ID to filter tasks by workspace.' },
+        status: { type: 'string', description: 'Filter by status/column name, e.g. "todo", "done", "in-progress".' },
+        priority: { type: 'string', enum: ['low', 'medium', 'high', 'urgent'], description: 'Filter by task priority level.' },
+        searchQuery: { type: 'string', description: 'Search keyword to match against task title or description.' },
+        dueBefore: { type: 'string', description: 'ISO date string (YYYY-MM-DD) to find tasks due on or before this date.' },
+        dueAfter: { type: 'string', description: 'ISO date string (YYYY-MM-DD) to find tasks due on or after this date.' },
+        limit: { type: 'number', description: 'Maximum number of tasks to return (default 50).' },
+      },
+    },
+  },
+  {
+    name: 'create_task',
+    description:
+      'Create a new task on the Kanban board. Supports Markdown checklists in the description (- [ ] item). Do not compute fractional ordering or DB IDs manually.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Clear, actionable title of the task.' },
+        threadId: { type: 'string', description: 'Thread ID to add task into. If omitted, adds to the primary default thread.' },
+        description: { type: 'string', description: 'Detailed task notes, specifications, or markdown subtasks (- [ ] task).' },
+        status: { type: 'string', description: 'Initial status column, e.g. "todo", "done". Defaults to first status column.' },
+        priority: { type: 'string', enum: ['low', 'medium', 'high', 'urgent'], description: 'Priority level (default: medium).' },
+        dueDate: { type: 'string', description: 'Due date in ISO format (YYYY-MM-DD).' },
+        remindFrequencyHours: { type: 'number', description: 'Automated Web Push reminder interval in hours (e.g. 24, 48).' },
+      },
+      required: ['title'],
+    },
+  },
+  {
+    name: 'move_task_status',
+    description:
+      'Shift a task to a different Kanban status column (e.g. move to "done", "todo", or "schedule latter"). Do not use update_task for column shifting.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        taskId: { type: 'string', description: 'The ID of the task to move.' },
+        targetStatus: { type: 'string', description: 'Target column name or ID, e.g. "done", "todo", "in-progress", "schedule latter".' },
+      },
+      required: ['taskId', 'targetStatus'],
+    },
+  },
+  {
+    name: 'update_task',
+    description:
+      'Update an existing task\'s editable properties (title, description, subtasks checklist, priority, due date, reminder). Do NOT use this to move Kanban columns; use move_task_status instead.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        taskId: { type: 'string', description: 'The ID of the task to update.' },
+        title: { type: 'string', description: 'Updated task title.' },
+        description: { type: 'string', description: 'Updated description notes or markdown checklist.' },
+        priority: { type: 'string', enum: ['low', 'medium', 'high', 'urgent'], description: 'Updated priority level.' },
+        dueDate: { type: 'string', description: 'Updated due date (YYYY-MM-DD) or null to clear.' },
+        remindFrequencyHours: { type: 'number', description: 'Updated reminder frequency in hours or null to disable.' },
+      },
+      required: ['taskId'],
+    },
+  },
+  {
+    name: 'archive_task',
+    description:
+      'Archive a task. The task is removed from active board view but its history and records are preserved.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        taskId: { type: 'string', description: 'The ID of the task to archive.' },
+      },
+      required: ['taskId'],
+    },
+  },
+  {
+    name: 'get_workspace_stats',
+    description:
+      'Get high-level productivity metrics and task counts (total, completed, pending, urgent, and overdue).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        threadId: { type: 'string', description: 'Optional thread ID to restrict metrics to a specific thread.' },
+      },
+    },
+  },
+];
 
 /**
  * GET /api/mcp
  * Returns server health and MCP capability metadata.
  */
 export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('authorization');
-  if (!verifyApiKey(authHeader)) {
+  const userId = await authenticateMcpUser(req);
+  if (!userId) {
     return NextResponse.json(
-      { error: 'Unauthorized: Invalid or missing Bearer token.' },
+      { error: 'Unauthorized: Invalid or missing Bearer token / x-mcp-api-key.' },
       { status: 401 }
     );
   }
@@ -92,12 +167,12 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   const startTime = performance.now();
-  const authHeader = req.headers.get('authorization');
-  if (!verifyApiKey(authHeader)) {
+  const userId = await authenticateMcpUser(req);
+  if (!userId) {
     return NextResponse.json(
       {
         jsonrpc: '2.0',
-        error: { code: -32000, message: 'Unauthorized: Invalid or missing Bearer token.' },
+        error: { code: -32000, message: 'Unauthorized: Invalid or missing API Key.' },
         id: null,
       },
       { status: 401 }
@@ -153,7 +228,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 2. Notifications (e.g. notifications/initialized)
+    // 2. Notifications
     else if (method === 'notifications/initialized' || method === 'initialized') {
       response = new NextResponse(null, { status: 204 });
     }
@@ -167,13 +242,13 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 4. Tools List (served from pre-computed cache)
+    // 4. Tools List
     else if (method === 'tools/list') {
       response = NextResponse.json({
         jsonrpc: '2.0',
         id,
         result: {
-          tools: CACHED_TOOL_LIST,
+          tools: STATIC_TOOL_LIST,
         },
       });
     }
@@ -183,7 +258,8 @@ export async function POST(req: NextRequest) {
       const toolName = params?.name;
       const toolArgs = params?.arguments || {};
 
-      const registeredTools = (mcpServer as any)._registeredTools || {};
+      const userMcpServer = createMcpServer(userId);
+      const registeredTools = (userMcpServer as any)._registeredTools || {};
       const tool = registeredTools[toolName];
 
       if (!tool) {
@@ -196,9 +272,7 @@ export async function POST(req: NextRequest) {
           },
         });
       } else {
-        // Execute tool handler via MCP Server
         const result = await tool.handler(toolArgs, { signal: req.signal });
-
         response = NextResponse.json({
           jsonrpc: '2.0',
           id,
@@ -221,7 +295,7 @@ export async function POST(req: NextRequest) {
 
     const elapsed = (performance.now() - startTime).toFixed(1);
     const logTag = method === 'tools/call' ? `tools/call:${params?.name}` : method;
-    console.log(`[MCP Server] ${logTag} took ${elapsed}ms`);
+    console.log(`[MCP Server] ${logTag} for user ${userId} took ${elapsed}ms`);
     response.headers.set('Server-Timing', `total;dur=${elapsed}`);
 
     return response;

@@ -3,11 +3,12 @@ import { connectDB } from '@/lib/db';
 import { PushSubscription } from '@/models/PushSubscription';
 import { pushSubscriptionSchema } from '@/lib/validations';
 import { getCurrentSession } from '@/lib/auth';
+import { Types } from 'mongoose';
 
 export async function POST(request: NextRequest) {
   try {
     const session = await getCurrentSession();
-    if (!session) {
+    if (!session?.userId) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -26,6 +27,7 @@ export async function POST(request: NextRequest) {
     await PushSubscription.findOneAndUpdate(
       { endpoint: parsed.data.endpoint },
       {
+        userId: new Types.ObjectId(session.userId),
         endpoint: parsed.data.endpoint,
         keys: parsed.data.keys,
         userAgent: parsed.data.userAgent || '',
@@ -43,7 +45,7 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const session = await getCurrentSession();
-    if (!session) {
+    if (!session?.userId) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -53,7 +55,10 @@ export async function DELETE(request: NextRequest) {
     }
 
     await connectDB();
-    await PushSubscription.deleteOne({ endpoint });
+    await PushSubscription.deleteOne({
+      endpoint,
+      userId: new Types.ObjectId(session.userId),
+    });
 
     return NextResponse.json({ success: true, message: 'Subscription removed' });
   } catch (error: any) {

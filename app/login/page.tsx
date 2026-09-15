@@ -16,6 +16,7 @@ import {
   Cpu,
   Clock,
   Kanban,
+  UserCheck,
 } from 'lucide-react';
 
 export default function LoginPage() {
@@ -24,19 +25,24 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setInfoMessage(null);
 
     startTransition(async () => {
-      const res = await loginAction({ email, pass: password });
+      const res = await loginAction({ email, password });
       if (res.success) {
+        if (res.isNewUser) {
+          setInfoMessage('🎉 Welcome to TaskFlow! Creating your personal workspace...');
+        }
         router.push('/');
         router.refresh();
       } else {
-        setError(res.error || 'Authentication failed. Please verify your credentials.');
+        setError(res.error || 'Authentication failed. Please verify your email and password.');
       }
     });
   };
@@ -58,18 +64,18 @@ export default function LoginPage() {
             {/* Top Badge */}
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-semibold tracking-wide backdrop-blur-md">
               <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Next.js 16 • Dynamic Thread Kanban Workspace</span>
+              <span>Multi-User • Personal Workspaces & AI MCP</span>
             </div>
 
             <h1 className="text-4xl font-extrabold tracking-tight text-white leading-tight">
               Manage tasks with <br />
               <span className="bg-gradient-to-r from-indigo-400 via-purple-300 to-emerald-400 bg-clip-text text-transparent">
-                dynamic thread workflows
+                isolated thread workspaces
               </span>
             </h1>
 
             <p className="text-slate-400 text-sm leading-relaxed">
-              Full-stack Kanban board featuring customizable thread tags, fractional float drag-and-drop, and timestamped movement logs built for calendar integration.
+              Full-stack Kanban workspace with fractional float ordering, Model Context Protocol (MCP) AI tools, and strict personal tenant data isolation.
             </p>
           </div>
 
@@ -81,7 +87,7 @@ export default function LoginPage() {
               </div>
               <div>
                 <h2 className="text-xs font-bold text-white">Dynamic Thread-Level Columns</h2>
-                <p className="text-[11px] text-slate-400">Custom statuses (todo, done, schedule latter) per thread.</p>
+                <p className="text-[11px] text-slate-400">Custom statuses and fractional ordering per workspace.</p>
               </div>
             </div>
 
@@ -91,7 +97,7 @@ export default function LoginPage() {
               </div>
               <div>
                 <h2 className="text-xs font-bold text-white">Timestamped Audit History</h2>
-                <p className="text-[11px] text-slate-400">Every card movement logged with exact date & time.</p>
+                <p className="text-[11px] text-slate-400">Every card movement and update logged with author attribution.</p>
               </div>
             </div>
 
@@ -100,8 +106,8 @@ export default function LoginPage() {
                 <Cpu className="w-4 h-4" />
               </div>
               <div>
-                <h2 className="text-xs font-bold text-white">Constant-Time Security</h2>
-                <p className="text-[11px] text-slate-400">Protected against timing attacks via crypto.timingSafeEqual.</p>
+                <h2 className="text-xs font-bold text-white">Multi-Tenant AI Agent (MCP)</h2>
+                <p className="text-[11px] text-slate-400">Personal API keys scoped to your private workspaces.</p>
               </div>
             </div>
           </div>
@@ -132,15 +138,23 @@ export default function LoginPage() {
                 <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
                   TaskFlow <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-semibold">Pro</span>
                 </h1>
-                <p className="text-slate-400 text-xs mt-0.5">Admin Workspace Access</p>
+                <p className="text-slate-400 text-xs mt-0.5">Instant Access • Auto-Provisioning</p>
               </div>
             </div>
 
             {/* Security Notice */}
             <div className="flex items-center gap-2 mb-6 text-xs text-indigo-300 font-medium px-3.5 py-2 rounded-xl bg-indigo-950/50 border border-indigo-500/20">
               <ShieldCheck className="w-4 h-4 text-indigo-400 shrink-0" />
-              <span>TimingSafe Admin Verification Enabled</span>
+              <span>Sign in or auto-create account seamlessly</span>
             </div>
+
+            {/* Info Message */}
+            {infoMessage && (
+              <div className="mb-6 p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-start gap-2.5 animate-in fade-in">
+                <UserCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                <span>{infoMessage}</span>
+              </div>
+            )}
 
             {/* Error Notification */}
             {error && (
@@ -154,7 +168,7 @@ export default function LoginPage() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
-                  Admin Email
+                  Email Address
                 </label>
                 <div className="relative">
                   <Mail className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
@@ -163,7 +177,7 @@ export default function LoginPage() {
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="admin@taskflow.local"
+                    placeholder="you@domain.com"
                     className="w-full bg-slate-950/70 border border-slate-700/80 rounded-xl pl-10 pr-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
                   />
                 </div>
@@ -171,13 +185,14 @@ export default function LoginPage() {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
-                  Custom Password
+                  Password <span className="text-slate-500 normal-case font-normal">(min 6 chars)</span>
                 </label>
                 <div className="relative">
                   <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                   <input
                     type={showPassword ? 'text' : 'password'}
                     required
+                    minLength={6}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••••••"
@@ -202,7 +217,7 @@ export default function LoginPage() {
                 {isPending ? (
                   <span className="flex items-center gap-2">
                     <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span>Verifying session...</span>
+                    <span>Signing in...</span>
                   </span>
                 ) : (
                   <>
@@ -217,9 +232,9 @@ export default function LoginPage() {
             <div className="mt-6 pt-5 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-500">
               <span className="flex items-center gap-1">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Single-admin node</span>
+                <span>Personal Tenant Isolation</span>
               </span>
-              <span className="font-mono">v1.0.0 Pro</span>
+              <span className="font-mono">v1.2.0</span>
             </div>
           </div>
         </div>

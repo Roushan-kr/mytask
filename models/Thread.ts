@@ -1,4 +1,5 @@
-import mongoose, { Schema, Document, Model } from 'mongoose';
+import mongoose, { Schema, Document, Model, Types } from 'mongoose';
+import { ThreadRole } from '@/lib/types';
 
 export interface ITag {
   id: string;
@@ -7,11 +8,20 @@ export interface ITag {
   order: number;
 }
 
+export interface IThreadMemberDoc {
+  userId: Types.ObjectId;
+  role: ThreadRole;
+  addedAt: Date;
+}
+
 export interface IThread extends Document {
+  ownerId: Types.ObjectId;
   name: string;
   description: string;
   color: string;
   tags: ITag[];
+  memberUserIds: Types.ObjectId[];
+  members: IThreadMemberDoc[];
   order: number;
   isArchived: boolean;
   archivedAt?: Date;
@@ -29,8 +39,18 @@ const TagSchema = new Schema<ITag>(
   { _id: false }
 );
 
+const ThreadMemberSchema = new Schema<IThreadMemberDoc>(
+  {
+    userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    role: { type: String, enum: ['owner', 'editor', 'viewer'], default: 'editor' },
+    addedAt: { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
+
 const ThreadSchema = new Schema<IThread>(
   {
+    ownerId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     name: { type: String, required: true, trim: true },
     description: { type: String, default: '' },
     color: { type: String, default: '#6366f1' },
@@ -42,6 +62,8 @@ const ThreadSchema = new Schema<IThread>(
         { id: 'schedule-later', name: 'schedule latter', color: '#8b5cf6', order: 2 },
       ],
     },
+    memberUserIds: [{ type: Schema.Types.ObjectId, ref: 'User', index: true }],
+    members: [ThreadMemberSchema],
     order: { type: Number, default: 1000 },
     isArchived: { type: Boolean, default: false },
     archivedAt: { type: Date },
@@ -51,8 +73,9 @@ const ThreadSchema = new Schema<IThread>(
   }
 );
 
-// Indexes
-ThreadSchema.index({ isArchived: 1, order: 1 });
+// Compound Indexes for high-speed scoped fetching
+ThreadSchema.index({ ownerId: 1, isArchived: 1, order: 1 });
+ThreadSchema.index({ memberUserIds: 1, isArchived: 1, order: 1 });
 
 export const Thread: Model<IThread> =
   mongoose.models.Thread || mongoose.model<IThread>('Thread', ThreadSchema);

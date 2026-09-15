@@ -1,9 +1,13 @@
 import { z } from 'zod';
 
-export const loginSchema = z.object({
-  email: z.string().email('Please enter a valid email address'),
-  password: z.string().min(1, 'Password is required'),
+export const authSchema = z.object({
+  email: z.email('Please enter a valid email address').toLowerCase().trim(),
+  password: z.string().min(6, 'Password must be at least 6 characters long'),
+  name: z.string().max(100).optional(),
 });
+
+// Backward compatibility alias
+export const loginSchema = authSchema;
 
 export const tagSchema = z.object({
   id: z.string().min(1, 'Tag ID is required'),
@@ -33,12 +37,19 @@ export const updateThreadTagsSchema = z.object({
   migrateTasksToTagId: z.string().optional(),
 });
 
+export const inviteMemberSchema = z.object({
+  threadId: z.string().min(1, 'Thread ID is required'),
+  email: z.string().email('Valid email is required').toLowerCase().trim(),
+  role: z.enum(['owner', 'editor', 'viewer']).default('editor'),
+});
+
 export const createTaskSchema = z.object({
   threadId: z.string().min(1, 'Thread ID is required'),
   title: z.string().min(1, 'Task title is required').max(200),
   description: z.string().max(2000).optional().default(''),
   tagId: z.string().min(1, 'Tag status is required'),
   priority: z.enum(['low', 'medium', 'high', 'urgent']).default('medium'),
+  assigneeId: z.string().optional(),
   dueDate: z.string().nullable().optional(),
   remind_frequency: z.number().positive().nullable().optional(),
   prevOrder: z.number().nullable().optional(),
@@ -50,6 +61,7 @@ export const updateTaskSchema = z.object({
   title: z.string().min(1, 'Task title is required').max(200).optional(),
   description: z.string().max(2000).optional(),
   priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
+  assigneeId: z.string().nullable().optional(),
   dueDate: z.string().nullable().optional(),
   remind_frequency: z.number().positive().nullable().optional(),
 });

@@ -6,10 +6,13 @@ export interface ITaskHistory {
   toTag: string;
   timestamp: Date;
   details?: string;
+  userId?: Types.ObjectId;
 }
 
 export interface ITask extends Document {
   threadId: Types.ObjectId;
+  creatorId: Types.ObjectId;
+  assigneeId?: Types.ObjectId | null;
   title: string;
   description: string;
   tagId: string;
@@ -36,6 +39,7 @@ const TaskHistorySchema = new Schema<ITaskHistory>(
     toTag: { type: String, required: true },
     timestamp: { type: Date, default: Date.now, required: true },
     details: { type: String },
+    userId: { type: Schema.Types.ObjectId, ref: 'User' },
   },
   { _id: false }
 );
@@ -46,6 +50,18 @@ const TaskSchema = new Schema<ITask>(
       type: Schema.Types.ObjectId,
       ref: 'Thread',
       required: true,
+      index: true,
+    },
+    creatorId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+      index: true,
+    },
+    assigneeId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
       index: true,
     },
     title: { type: String, required: true, trim: true },
@@ -70,8 +86,10 @@ const TaskSchema = new Schema<ITask>(
 );
 
 // High-speed compound indexes for Kanban lookups, calendar timeline, and cron reminder checks
+TaskSchema.index({ threadId: 1, isArchived: 1, order: 1 });
 TaskSchema.index({ threadId: 1, tagId: 1, order: 1 });
-TaskSchema.index({ threadId: 1, isArchived: 1 });
+TaskSchema.index({ assigneeId: 1, isArchived: 1 });
+TaskSchema.index({ creatorId: 1, isArchived: 1 });
 TaskSchema.index({ isArchived: 1, tagId: 1, remind_frequency: 1 });
 TaskSchema.index({ 'history.timestamp': 1 });
 

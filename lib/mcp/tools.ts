@@ -4,20 +4,20 @@ import { taskService } from '@/lib/services/task.service';
 import { threadService } from '@/lib/services/thread.service';
 
 /**
- * Registers all TaskFlow tools with the official MCP Server instance.
+ * Registers all TaskFlow tools with the official MCP Server instance scoped to a specific user.
  * Provides high-signal descriptions so models can reliably select and parameterize tools.
  */
-export function registerTaskFlowTools(server: McpServer) {
+export function registerTaskFlowTools(server: McpServer, userId: string) {
   // 1. List Threads & Statuses
   server.registerTool(
     'list_threads',
     {
       description:
-        'List all available workspace threads (e.g. "Main Project", "Sprint 24") along with their custom Kanban status columns (e.g. "todo", "done", "schedule latter").',
+        'List all available workspace threads (e.g. "Main Workspace", "Sprint 24") along with their custom Kanban status columns (e.g. "todo", "done", "schedule latter").',
     },
     async () => {
       try {
-        const threads = await threadService.listThreads();
+        const threads = await threadService.listThreads(userId);
         return {
           content: [{ type: 'text', text: JSON.stringify({ count: threads.length, threads }, null, 2) }],
         };
@@ -48,7 +48,7 @@ export function registerTaskFlowTools(server: McpServer) {
     },
     async (params) => {
       try {
-        const tasks = await taskService.getTasks(params);
+        const tasks = await taskService.getTasks(userId, params);
         return {
           content: [{ type: 'text', text: JSON.stringify({ count: tasks.length, tasks }, null, 2) }],
         };
@@ -79,7 +79,7 @@ export function registerTaskFlowTools(server: McpServer) {
     },
     async (params) => {
       try {
-        const created = await taskService.createTask({
+        const created = await taskService.createTask(userId, {
           ...params,
           source: 'mcp',
         });
@@ -113,7 +113,7 @@ export function registerTaskFlowTools(server: McpServer) {
     },
     async ({ taskId, targetStatus }) => {
       try {
-        const moved = await taskService.moveTaskStatus(taskId, targetStatus, 'mcp');
+        const moved = await taskService.moveTaskStatus(userId, taskId, targetStatus, 'mcp');
         return {
           content: [
             {
@@ -148,7 +148,7 @@ export function registerTaskFlowTools(server: McpServer) {
     },
     async ({ taskId, ...updates }) => {
       try {
-        const updated = await taskService.updateTask(taskId, {
+        const updated = await taskService.updateTask(userId, taskId, {
           ...updates,
           source: 'mcp',
         });
@@ -181,7 +181,7 @@ export function registerTaskFlowTools(server: McpServer) {
     },
     async ({ taskId }) => {
       try {
-        const res = await taskService.archiveTask(taskId, 'mcp');
+        const res = await taskService.archiveTask(userId, taskId, 'mcp');
         return {
           content: [{ type: 'text', text: `📦 Task ${res.id} has been archived.` }],
         };
@@ -206,7 +206,7 @@ export function registerTaskFlowTools(server: McpServer) {
     },
     async ({ threadId }) => {
       try {
-        const stats = await taskService.getWorkspaceStats(threadId);
+        const stats = await taskService.getWorkspaceStats(userId, threadId);
         return {
           content: [{ type: 'text', text: JSON.stringify(stats, null, 2) }],
         };
@@ -221,14 +221,14 @@ export function registerTaskFlowTools(server: McpServer) {
 }
 
 /**
- * Creates and initializes a TaskFlow MCP Server instance.
+ * Creates and initializes a TaskFlow MCP Server instance scoped to a specific user.
  */
-export function createMcpServer(): McpServer {
+export function createMcpServer(userId: string): McpServer {
   const server = new McpServer({
     name: 'taskflow-mcp-server',
     version: '1.0.0',
   });
 
-  registerTaskFlowTools(server);
+  registerTaskFlowTools(server, userId);
   return server;
 }

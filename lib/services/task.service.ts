@@ -3,10 +3,14 @@ import { Task } from '@/models/Task';
 import { Thread } from '@/models/Thread';
 import { calculateSubtaskProgress } from '@/lib/subtasks';
 import { threadService } from './thread.service';
+import { verifyThreadAccess, getAccessibleThreadIds } from '@/lib/auth/permissions';
+import { Types } from 'mongoose';
 
 export interface ICleanTask {
   id: string;
   threadId: string;
+  creatorId: string;
+  assigneeId?: string;
   title: string;
   description?: string;
   status: string;
@@ -39,6 +43,8 @@ function formatCleanTask(t: any): ICleanTask {
   return {
     id: t._id.toString(),
     threadId: t.threadId.toString(),
+    creatorId: t.creatorId?.toString() || '',
+    assigneeId: t.assigneeId ? t.assigneeId.toString() : undefined,
     title: t.title,
     description: t.description || undefined,
     status: t.tagId || 'todo',
@@ -60,15 +66,27 @@ function formatCleanTask(t: any): ICleanTask {
 
 export const taskService = {
   /**
-   * High-signal task query with optional multi-attribute filters.
+   * High-signal task query scoped to user-accessible threads with optional multi-attribute filters.
    */
-  async getTasks(filter: ITaskFilter = {}): Promise<ICleanTask[]> {
+  async getTasks(userId: string, filter: ITaskFilter = {}): Promise<ICleanTask[]> {
+    if (!userId) return [];
     await connectDB();
-    const query: any = { isArchived: false };
+
+    let targetThreadIds: string[] = [];
 
     if (filter.threadId) {
-      query.threadId = filter.threadId;
+      const access = await verifyThreadAccess(userId, filter.threadId, 'viewer');
+      if (!access) return [];
+      targetThreadIds = [filter.threadId];
+    } else {
+      targetThreadIds = await getAccessibleThreadIds(userId);
+      if (targetThreadIds.length === 0) return [];
     }
+
+    const query: any = {
+      isArchived: false,
+      threadId: { $in: targetThreadIds.map((id) => new Types.ObjectId(id)) },
+    };
 
     if (filter.priority) {
       query.priority = filter.priority;
@@ -104,38 +122,45 @@ export const taskService = {
   /**
    * Creates a new task with automated order calculation and audit logging.
    */
-  async createTask(params: {
-    threadId?: string;
-    title: string;
-    description?: string;
-    status?: string;
-    priority?: 'low' | 'medium' | 'high' | 'urgent';
-    dueDate?: string;
-    remindFrequencyHours?: number | null;
-    source?: 'web' | 'mcp' | 'api';
-  }): Promise<ICleanTask> {
+  async createTask(
+    userId: string,
+    params: {
+      threadId?: string;
+      title: string;
+      description?: string;
+      status?: string;
+      priority?: 'low' | 'medium' | 'high' | 'urgent';
+      assigneeId?: string;
+      dueDate?: string;
+      remindFrequencyHours?: number | null;
+      source?: 'web' | 'mcp' | 'api';
+    }
+  ): Promise<ICleanTask> {
     await connectDB();
 
     // 1. Resolve Target Thread
     let targetThreadId = params.threadId;
     if (!targetThreadId) {
-      const defaultThread = await Thread.findOne({ isArchived: false }).sort({ order: 1 }).select('_id').lean();
-      if (!defaultThread) throw new Error('No active thread found. Please create a thread first.');
-      targetThreadId = defaultThread._id.toString();
+      const userThreads = await threadService.listThreads(userId);
+      if (userThreads.length === 0) throw new Error('No accessible thread found.');
+      targetThreadId = userThreads[0].id;
     }
+
+    const access = await verifyThreadAccess(userId, targetThreadId, 'editor');
+    if (!access) throw new Error('Unauthorized. You do not have edit permissions on this thread.');
 
     // 2. Resolve Tag / Status
     let resolvedTagId = 'todo';
     if (params.status) {
-      resolvedTagId = await threadService.resolveTag(targetThreadId!, params.status);
+      resolvedTagId = await threadService.resolveTag(targetThreadId, params.status);
     } else {
-      const thread = await Thread.findById(targetThreadId).lean();
+      const thread = access.thread;
       resolvedTagId = thread?.tags?.[0]?.id || 'todo';
     }
 
     // 3. Fractional Order: Append to bottom of column
     const highestInTag = await Task.findOne({
-      threadId: targetThreadId,
+      threadId: new Types.ObjectId(targetThreadId),
       tagId: resolvedTagId,
       isArchived: false,
     })
@@ -148,7 +173,9 @@ export const taskService = {
     const sourceActor = params.source || 'mcp';
 
     const task = await Task.create({
-      threadId: targetThreadId,
+      threadId: new Types.ObjectId(targetThreadId),
+      creatorId: new Types.ObjectId(userId),
+      assigneeId: params.assigneeId && Types.ObjectId.isValid(params.assigneeId) ? new Types.ObjectId(params.assigneeId) : null,
       title: params.title.trim(),
       description: params.description || '',
       tagId: resolvedTagId,
@@ -163,6 +190,7 @@ export const taskService = {
           toTag: resolvedTagId,
           timestamp: now,
           details: `Created via ${sourceActor.toUpperCase()}`,
+          userId: new Types.ObjectId(userId),
         },
       ],
       isArchived: false,
@@ -172,14 +200,16 @@ export const taskService = {
   },
 
   /**
-   * Updates task attributes (title, description/subtasks, priority, dueDate, reminder).
+   * Updates task attributes (title, description/subtasks, priority, dueDate, reminder, assignee).
    */
   async updateTask(
+    userId: string,
     taskId: string,
     updates: {
       title?: string;
       description?: string;
       priority?: 'low' | 'medium' | 'high' | 'urgent';
+      assigneeId?: string | null;
       dueDate?: string | null;
       remindFrequencyHours?: number | null;
       source?: string;
@@ -189,8 +219,14 @@ export const taskService = {
     const task = await Task.findById(taskId);
     if (!task) throw new Error(`Task '${taskId}' not found.`);
 
+    const access = await verifyThreadAccess(userId, task.threadId.toString(), 'editor');
+    if (!access) throw new Error('Unauthorized. You do not have permission to edit tasks in this thread.');
+
     if (updates.title !== undefined) task.title = updates.title.trim();
     if (updates.description !== undefined) task.description = updates.description;
+    if (updates.assigneeId !== undefined) {
+      task.assigneeId = updates.assigneeId && Types.ObjectId.isValid(updates.assigneeId) ? new Types.ObjectId(updates.assigneeId) : null;
+    }
     if (updates.priority !== undefined) {
       if (task.priority !== updates.priority) {
         task.history.push({
@@ -199,6 +235,7 @@ export const taskService = {
           toTag: task.tagId,
           timestamp: new Date(),
           details: `Priority changed from '${task.priority}' to '${updates.priority}' via ${updates.source || 'MCP'}`,
+          userId: new Types.ObjectId(userId),
         });
       }
       task.priority = updates.priority;
@@ -222,6 +259,7 @@ export const taskService = {
    * Moves a task to a new Kanban column with human-readable status resolution.
    */
   async moveTaskStatus(
+    userId: string,
     taskId: string,
     targetStatus: string,
     source = 'mcp'
@@ -229,6 +267,9 @@ export const taskService = {
     await connectDB();
     const task = await Task.findById(taskId);
     if (!task) throw new Error(`Task '${taskId}' not found.`);
+
+    const access = await verifyThreadAccess(userId, task.threadId.toString(), 'editor');
+    if (!access) throw new Error('Unauthorized. You do not have permission to move tasks in this thread.');
 
     const resolvedTagId = await threadService.resolveTag(task.threadId.toString(), targetStatus);
     const fromTag = task.tagId;
@@ -244,6 +285,7 @@ export const taskService = {
       toTag: resolvedTagId,
       timestamp: new Date(),
       details: `Moved from '${fromTag}' to '${resolvedTagId}' via ${source.toUpperCase()}`,
+      userId: new Types.ObjectId(userId),
     });
 
     if (task.history.length > MAX_TASK_HISTORY_RECORDS) {
@@ -257,10 +299,13 @@ export const taskService = {
   /**
    * Archives a task safely without deleting history.
    */
-  async archiveTask(taskId: string, source = 'mcp'): Promise<{ id: string; success: boolean }> {
+  async archiveTask(userId: string, taskId: string, source = 'mcp'): Promise<{ id: string; success: boolean }> {
     await connectDB();
     const task = await Task.findById(taskId);
     if (!task) throw new Error(`Task '${taskId}' not found.`);
+
+    const access = await verifyThreadAccess(userId, task.threadId.toString(), 'editor');
+    if (!access) throw new Error('Unauthorized. You do not have permission to archive tasks in this thread.');
 
     task.isArchived = true;
     task.archivedAt = new Date();
@@ -270,6 +315,7 @@ export const taskService = {
       toTag: 'archived',
       timestamp: new Date(),
       details: `Archived via ${source.toUpperCase()}`,
+      userId: new Types.ObjectId(userId),
     });
 
     if (task.history.length > MAX_TASK_HISTORY_RECORDS) {
@@ -281,12 +327,27 @@ export const taskService = {
   },
 
   /**
-   * Returns workspace stats across all threads or a specific thread.
+   * Returns workspace stats across user accessible threads.
    */
-  async getWorkspaceStats(threadId?: string) {
+  async getWorkspaceStats(userId: string, threadId?: string) {
     await connectDB();
-    const query: any = { isArchived: false };
-    if (threadId) query.threadId = threadId;
+    let targetThreadIds: string[] = [];
+
+    if (threadId) {
+      const access = await verifyThreadAccess(userId, threadId, 'viewer');
+      if (!access) return { totalTasks: 0, completedTasks: 0, pendingTasks: 0, urgentTasks: 0, overdueTasks: 0 };
+      targetThreadIds = [threadId];
+    } else {
+      targetThreadIds = await getAccessibleThreadIds(userId);
+      if (targetThreadIds.length === 0) {
+        return { totalTasks: 0, completedTasks: 0, pendingTasks: 0, urgentTasks: 0, overdueTasks: 0 };
+      }
+    }
+
+    const query: any = {
+      isArchived: false,
+      threadId: { $in: targetThreadIds.map((id) => new Types.ObjectId(id)) },
+    };
 
     const tasks = await Task.find(query).select('tagId priority dueDate').lean();
     const now = new Date();

@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { Task } from '@/models/Task';
-import { PushSubscription } from '@/models/PushSubscription';
-import { sendWebPushNotification } from '@/lib/push';
+import { notifyUser } from '@/lib/push/notify';
 import { timingSafeCompare } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
@@ -41,7 +40,7 @@ async function handleCronExecution(request: NextRequest) {
     await connectDB();
     const now = new Date();
 
-    // 2. High-speed single query: MongoDB engine calculates reminder intervals directly
+    // 2. High-speed query: MongoDB engine calculates reminder intervals directly
     const dueTasks = await Task.find({
       isArchived: false,
       tagId: { $regex: /todo/i }, // Matches 'todo', 'Todo', 'todo-friday', etc.
@@ -58,7 +57,7 @@ async function handleCronExecution(request: NextRequest) {
         },
       ],
     })
-      .select('_id title tagId remind_frequency')
+      .select('_id title tagId remind_frequency creatorId assigneeId')
       .limit(100)
       .lean();
 
@@ -77,56 +76,49 @@ async function handleCronExecution(request: NextRequest) {
       { $set: { last_reminded: now } }
     );
 
-    // 4. Fetch registered web push subscribers
-    const subscriptions = await PushSubscription.find({}).lean();
-    if (subscriptions.length === 0) {
-      return NextResponse.json({
-        success: true,
-        message: 'Tasks due, but no push subscriptions found.',
-        dueTasksCount: dueTasks.length,
-        notifiedSubscriptions: 0,
-      });
-    }
-
-    // 5. Construct 1 consolidated notification digest
-    const preview = dueTasks.slice(0, 3).map((t) => t.title).join(', ');
-    const moreCount = dueTasks.length > 3 ? ` (+${dueTasks.length - 3} more)` : '';
-
-    const payload = {
-      title: `🔔 TaskFlow Reminder: ${dueTasks.length} Todo ${dueTasks.length === 1 ? 'Task' : 'Tasks'}`,
-      body: `Pending: ${preview}${moreCount}`,
-      icon: '/favicon.ico',
-      badge: '/favicon.ico',
-      tag: 'todo-reminder',
-      data: {
-        url: '/',
-        dueTasksCount: dueTasks.length,
-        timestamp: now.toISOString(),
-      },
-    };
-
-    // 6. Broadcast push in parallel with Promise.allSettled
-    const results = await Promise.allSettled(
-      subscriptions.map((sub) =>
-        sendWebPushNotification({ endpoint: sub.endpoint, keys: sub.keys }, payload)
-      )
-    );
-
-    let sent = 0;
-    let expired = 0;
-    for (const r of results) {
-      if (r.status === 'fulfilled') {
-        if (r.value.success) sent++;
-        if (r.value.expired) expired++;
+    // 4. Group due tasks by recipient user (assigneeId || creatorId)
+    const userTaskMap = new Map<string, any[]>();
+    for (const task of dueTasks) {
+      const recipientId = (task.assigneeId || task.creatorId)?.toString();
+      if (!recipientId) continue;
+      if (!userTaskMap.has(recipientId)) {
+        userTaskMap.set(recipientId, []);
       }
+      userTaskMap.get(recipientId)!.push(task);
     }
+
+    // 5. Dispatch per-user notifications in parallel
+    let totalSent = 0;
+    let totalExpired = 0;
+
+    const dispatchPromises = Array.from(userTaskMap.entries()).map(async ([userId, tasks]) => {
+      const preview = tasks.slice(0, 3).map((t) => t.title).join(', ');
+      const moreCount = tasks.length > 3 ? ` (+${tasks.length - 3} more)` : '';
+
+      const { sent, expired } = await notifyUser({
+        userId,
+        type: 'task_reminder',
+        title: `🔔 TaskFlow: ${tasks.length} Todo ${tasks.length === 1 ? 'Task' : 'Tasks'} Due`,
+        body: `Pending: ${preview}${moreCount}`,
+        data: {
+          dueTasksCount: tasks.length,
+          timestamp: now.toISOString(),
+        },
+      });
+
+      totalSent += sent;
+      totalExpired += expired;
+    });
+
+    await Promise.allSettled(dispatchPromises);
 
     return NextResponse.json({
       success: true,
       dueTasksCount: dueTasks.length,
-      notifiedSubscriptions: sent,
-      expiredRemoved: expired,
-      timestamp: now.toISOString()
+      usersNotified: userTaskMap.size,
+      notifiedSubscriptions: totalSent,
+      expiredRemoved: totalExpired,
+      timestamp: now.toISOString(),
     });
   } catch (error: any) {
     console.error('[Cron/Todos] Error processing notifications:', error);

@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document, Model } from 'mongoose';
+import mongoose, { Schema, Document, Model, Types } from 'mongoose';
 
 export interface IPushSubscriptionKeys {
   p256dh: string;
@@ -6,6 +6,7 @@ export interface IPushSubscriptionKeys {
 }
 
 export interface IPushSubscription extends Document {
+  userId: Types.ObjectId;
   endpoint: string;
   keys: IPushSubscriptionKeys;
   userAgent?: string;
@@ -23,6 +24,7 @@ const PushSubscriptionKeysSchema = new Schema<IPushSubscriptionKeys>(
 
 const PushSubscriptionSchema = new Schema<IPushSubscription>(
   {
+    userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     endpoint: { type: String, required: true, unique: true, index: true },
     keys: { type: PushSubscriptionKeysSchema, required: true },
     userAgent: { type: String, default: '' },
@@ -31,6 +33,8 @@ const PushSubscriptionSchema = new Schema<IPushSubscription>(
     timestamps: true,
   }
 );
+
+PushSubscriptionSchema.index({ userId: 1, createdAt: -1 });
 
 export const PushSubscription: Model<IPushSubscription> =
   mongoose.models.PushSubscription ||

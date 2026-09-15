@@ -4,24 +4,32 @@ import { connectDB } from '@/lib/db';
 import { Thread } from '@/models/Thread';
 import { Task } from '@/models/Task';
 import { getCurrentSession } from '@/lib/auth';
+import { verifyThreadAccess } from '@/lib/auth/permissions';
 import { revalidatePath } from 'next/cache';
+import { Types } from 'mongoose';
 
 export async function exportThreadBackupAction(threadId: string) {
   try {
     const session = await getCurrentSession();
-    if (!session) return { success: false, error: 'Unauthorized' };
+    if (!session?.userId) return { success: false, error: 'Unauthorized' };
+
+    const access = await verifyThreadAccess(session.userId, threadId, 'viewer');
+    if (!access) return { success: false, error: 'Unauthorized to export this thread' };
 
     await connectDB();
-    const thread = await Thread.findById(threadId).lean();
-    if (!thread) return { success: false, error: 'Thread not found' };
-
-    const tasks = await Task.find({ threadId }).sort({ order: 1, createdAt: 1 }).lean();
+    const thread = access.thread;
+    const tasks = await Task.find({
+      threadId: new Types.ObjectId(threadId),
+      isArchived: false,
+    })
+      .sort({ order: 1, createdAt: 1 })
+      .lean();
 
     return {
       success: true,
       data: {
         exportedAt: new Date().toISOString(),
-        version: '1.0',
+        version: '1.2',
         thread: JSON.parse(JSON.stringify(thread)),
         tasks: JSON.parse(JSON.stringify(tasks)),
       },
@@ -34,17 +42,31 @@ export async function exportThreadBackupAction(threadId: string) {
 export async function exportAllBackupAction() {
   try {
     const session = await getCurrentSession();
-    if (!session) return { success: false, error: 'Unauthorized' };
+    if (!session?.userId) return { success: false, error: 'Unauthorized' };
 
     await connectDB();
-    const threads = await Thread.find({ isArchived: false }).sort({ order: 1 }).lean();
-    const tasks = await Task.find({ isArchived: false }).sort({ order: 1, createdAt: 1 }).lean();
+    const userObjId = new Types.ObjectId(session.userId);
+
+    const threads = await Thread.find({
+      isArchived: false,
+      $or: [{ ownerId: userObjId }, { memberUserIds: userObjId }],
+    })
+      .sort({ order: 1 })
+      .lean();
+
+    const accessibleThreadIds = threads.map((t) => t._id);
+    const tasks = await Task.find({
+      threadId: { $in: accessibleThreadIds },
+      isArchived: false,
+    })
+      .sort({ order: 1, createdAt: 1 })
+      .lean();
 
     return {
       success: true,
       data: {
         exportedAt: new Date().toISOString(),
-        version: '1.0',
+        version: '1.2',
         threads: JSON.parse(JSON.stringify(threads)),
         tasks: JSON.parse(JSON.stringify(tasks)),
       },
@@ -68,22 +90,26 @@ export async function importTasksIntoThreadAction(payload: {
 }) {
   try {
     const session = await getCurrentSession();
-    if (!session) return { success: false, error: 'Unauthorized' };
+    if (!session?.userId) return { success: false, error: 'Unauthorized' };
 
     const { threadId, tasks } = payload;
     if (!tasks || !Array.isArray(tasks) || tasks.length === 0) {
       return { success: false, error: 'No tasks found in import payload' };
     }
 
-    await connectDB();
-    const thread = await Thread.findById(threadId);
-    if (!thread) return { success: false, error: 'Target thread not found' };
+    const access = await verifyThreadAccess(session.userId, threadId, 'editor');
+    if (!access) return { success: false, error: 'Unauthorized to import tasks into this thread' };
 
+    await connectDB();
+    const thread = access.thread;
     const availableTags = thread.tags || [];
     const defaultTagId = availableTags[0]?.id || 'todo';
 
     // Find highest order in target thread to append imported tasks sequentially
-    const highestTask = await Task.findOne({ threadId, isArchived: false })
+    const highestTask = await Task.findOne({
+      threadId: new Types.ObjectId(threadId),
+      isArchived: false,
+    })
       .sort({ order: -1 })
       .select('order')
       .lean();
@@ -95,7 +121,7 @@ export async function importTasksIntoThreadAction(payload: {
       let resolvedTagId = t.tagId;
       if (!resolvedTagId && t.status) {
         const found = availableTags.find(
-          (tag) => tag.name.toLowerCase() === t.status?.toLowerCase() || tag.id === t.status
+          (tag: any) => tag.name.toLowerCase() === t.status?.toLowerCase() || tag.id === t.status
         );
         resolvedTagId = found ? found.id : defaultTagId;
       }
@@ -104,7 +130,8 @@ export async function importTasksIntoThreadAction(payload: {
       currentOrder += 1000;
 
       return {
-        threadId,
+        threadId: new Types.ObjectId(threadId),
+        creatorId: new Types.ObjectId(session.userId),
         title: t.title.trim(),
         description: t.description || '',
         tagId: resolvedTagId,
@@ -119,6 +146,7 @@ export async function importTasksIntoThreadAction(payload: {
             toTag: resolvedTagId,
             timestamp: now,
             details: 'Imported from backup',
+            userId: new Types.ObjectId(session.userId),
           },
         ],
         isArchived: false,
